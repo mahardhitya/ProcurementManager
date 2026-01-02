@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:device_preview/device_preview.dart'; // Import plugin ini
-import 'package:procurement/views/auth/user_division/dashboard_user.dart';
 import 'views/auth/login_page.dart'; // Pastikan import ini sesuai dengan folder kamu
 
 void main() {
@@ -19,7 +18,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Finance App',
+      title: 'ProcuMon',
       debugShowCheckedModeBanner: false,
       
       locale: DevicePreview.locale(context),
@@ -35,7 +34,7 @@ class MyApp extends StatelessWidget {
         scaffoldBackgroundColor: Colors.white,
       ),
       
-      home: const DashboardUser(), // Ganti dengan halaman awal yang diinginkan
+      home: const LoginPage(), // Ganti dengan halaman awal yang diinginkan
     );
   }
 }

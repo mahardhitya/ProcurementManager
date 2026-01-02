@@ -1,10 +1,20 @@
 import 'package:flutter/material.dart';
-import '../../../core/restapi.dart'; // Pastikan path import ini benar
-import 'dart:convert';
+import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
+import 'dashboard_user.dart'; // Import untuk update dummy data
+import 'package:intl/intl.dart'; // Untuk format tanggal
 
 class AddRequestPage extends StatefulWidget {
   final String monthName; // Kita butuh ini untuk menandai data masuk bulan apa
-  const AddRequestPage({super.key, required this.monthName});
+  final String userDivision; // Divisi user yang login
+
+  const AddRequestPage({
+    super.key,
+    required this.monthName,
+    required this.userDivision,
+  });
 
   @override
   State<AddRequestPage> createState() => _AddRequestPageState();
@@ -16,39 +26,161 @@ class _AddRequestPageState extends State<AddRequestPage> {
 
   // Controllers
   final TextEditingController _itemController = TextEditingController();
-  final TextEditingController _qtyController = TextEditingController();
   final TextEditingController _priceController = TextEditingController();
 
   int _totalPrice = 0;
   bool _isLoading = false;
+  int _selectedQuantity = 1;
+  File? _imageFile;
+  XFile? _pickedImage; // Untuk web compatibility
+  final ImagePicker _picker = ImagePicker();
+
+  // Dropdown options untuk quantity
+  final List<int> _quantityOptions = List.generate(50, (index) => index + 1);
 
   // Real-time calculation
   void _calculateTotal() {
-    int qty = int.tryParse(_qtyController.text) ?? 0;
-    int price = int.tryParse(_priceController.text) ?? 0;
+    int price = int.tryParse(_priceController.text.replaceAll('.', '')) ?? 0;
     setState(() {
-      _totalPrice = qty * price;
+      _totalPrice = _selectedQuantity * price;
     });
   }
 
-  // CORE LOGIC: Save to GoCloud
+  // Fungsi untuk mengambil foto
+  Future<void> _pickImage(ImageSource source) async {
+    try {
+      final XFile? pickedFile = await _picker.pickImage(
+        source: source,
+        maxWidth: 1920,
+        maxHeight: 1080,
+        imageQuality: 85,
+      );
+
+      if (pickedFile != null) {
+        setState(() {
+          _pickedImage = pickedFile;
+          if (!kIsWeb) {
+            _imageFile = File(pickedFile.path);
+          }
+        });
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red),
+      );
+    }
+  }
+
+  // Show bottom sheet untuk pilih kamera atau galeri
+  void _showImageSourcePicker() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              "Pilih Sumber Foto",
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 20),
+            ListTile(
+              leading: const Icon(Icons.camera_alt, color: Colors.blue),
+              title: const Text("Kamera"),
+              onTap: () {
+                Navigator.pop(context);
+                _pickImage(ImageSource.camera);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library, color: Colors.green),
+              title: const Text("Galeri"),
+              onTap: () {
+                Navigator.pop(context);
+                _pickImage(ImageSource.gallery);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Format angka dengan pemisah ribuan
+  String _formatNumber(String value) {
+    if (value.isEmpty) return '';
+    value = value.replaceAll('.', '');
+    final number = int.tryParse(value);
+    if (number == null) return value;
+    return number.toString().replaceAllMapped(
+      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+      (Match m) => '${m[1]}.',
+    );
+  }
+
+  // CORE LOGIC: Save to GoCloud (Dummy Mode untuk Testing)
   Future<void> _submitToCloud() async {
     if (!_formKey.currentState!.validate()) return;
 
+    // Validasi foto wajib diupload
+    if (_pickedImage == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Mohon upload foto barang terlebih dahulu"),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
     setState(() => _isLoading = true);
 
+    // Simulasi delay untuk loading effect
+    await Future.delayed(const Duration(seconds: 1));
+
     try {
+      // Mode Dummy: Langsung sukses tanpa API call
+      // Buat data baru
+      final newRequest = {
+        'item_name': _itemController.text,
+        'quantity': _selectedQuantity,
+        'price': int.parse(_priceController.text.replaceAll('.', '')),
+        'status': 'Pending',
+        'date': DateFormat('yyyy-MM-dd').format(DateTime.now()),
+        'division': widget.userDivision, // Tambahkan divisi user
+      };
+
+      // Tambahkan ke dummy data
+      DashboardUser.addNewRequest(widget.monthName, newRequest);
+
+      if (mounted) {
+        setState(() => _isLoading = false);
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Pengajuan berhasil dikirim!"),
+            backgroundColor: Colors.green,
+          ),
+        );
+        Navigator.pop(context, true);
+        return;
+      }
+
+      // Uncomment kode di bawah ini jika ingin menggunakan API real
+      /*
       final dataService = DataService();
       
-      // Kita gunakan 'monthName' sebagai 'monthly_budget_id' agar mudah difilter nanti
-      // Sesuaikan ID App & Project dengan milikmu
       String response = await dataService.insertProcurementRequests(
         '693cbdff23173f13b93c2291',    // App ID
         widget.monthName,              // Simpan nama bulan di kolom monthly_budget_id
         'USER-123',                    // User ID (Dummy dulu/ambil dari session)
         _itemController.text,
-        _qtyController.text,
-        _priceController.text,
+        _selectedQuantity.toString(),
+        _priceController.text.replaceAll('.', ''),
         _totalPrice.toString(),
         'Pending',                     // Status default
         'IT Dept'                      // Divisi (Dummy dulu)
@@ -63,13 +195,14 @@ class _AddRequestPageState extends State<AddRequestPage> {
         // Validasi response dari GoCloud (Biasanya return List/Map yg berisi ID)
         if (decodedData is List && decodedData.isNotEmpty) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Data berhasil disimpan ke Cloud!"), backgroundColor: Colors.green),
+            const SnackBar(content: Text("Pengajuan berhasil dikirim!"), backgroundColor: Colors.green),
           );
           Navigator.pop(context, true); // Kembali & trigger refresh
         } else {
           throw Exception("Gagal menyimpan: $response");
         }
       }
+      */
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -83,13 +216,11 @@ class _AddRequestPageState extends State<AddRequestPage> {
   @override
   void initState() {
     super.initState();
-    _qtyController.addListener(_calculateTotal);
     _priceController.addListener(_calculateTotal);
   }
 
   @override
   void dispose() {
-    _qtyController.dispose();
     _priceController.dispose();
     _itemController.dispose();
     super.dispose();
@@ -98,117 +229,508 @@ class _AddRequestPageState extends State<AddRequestPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFF5F7FA),
       appBar: AppBar(
-        title: Text("Input: ${widget.monthName}"),
-        backgroundColor: Colors.blueAccent,
+        title: Text("${widget.monthName}"),
+        backgroundColor: const Color(0xFF1565C0),
         foregroundColor: Colors.white,
+        elevation: 0,
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20.0),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildInputLabel("Nama Barang"),
-              TextFormField(
-                controller: _itemController,
-                validator: (val) => val!.isEmpty ? "Nama barang wajib diisi" : null,
-                decoration: _inputDecor("Contoh: Laptop, Kertas A4"),
+        child: Column(
+          children: [
+            // Header Card
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(20),
+              decoration: const BoxDecoration(
+                color: Color(0xFF1565C0),
+                borderRadius: BorderRadius.only(
+                  bottomLeft: Radius.circular(30),
+                  bottomRight: Radius.circular(30),
+                ),
               ),
-              const SizedBox(height: 16),
-              
-              Row(
+              child: Column(
                 children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildInputLabel("Jumlah (Qty)"),
-                        TextFormField(
-                          controller: _qtyController,
-                          keyboardType: TextInputType.number,
-                          validator: (val) => val!.isEmpty ? "Wajib isi" : null,
-                          decoration: _inputDecor("0"),
-                        ),
-                      ],
+                  const Icon(
+                    Icons.add_shopping_cart,
+                    size: 60,
+                    color: Colors.white70,
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    "Pengajuan Baru",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _buildInputLabel("Harga Satuan"),
-                        TextFormField(
-                          controller: _priceController,
-                          keyboardType: TextInputType.number,
-                          validator: (val) => val!.isEmpty ? "Wajib isi" : null,
-                          decoration: _inputDecor("Rp 0", prefix: "Rp "),
-                        ),
-                      ],
-                    ),
+                  const SizedBox(height: 6),
+                  Text(
+                    "Bulan ${widget.monthName} 2025",
+                    style: const TextStyle(color: Colors.white70, fontSize: 14),
                   ),
                 ],
               ),
-              const SizedBox(height: 24),
+            ),
 
-              // Total Price Card
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.blue.shade50,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.blue.shade100),
-                ),
+            // Form Content
+            Padding(
+              padding: const EdgeInsets.all(20.0),
+              child: Form(
+                key: _formKey,
                 child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text("Total Estimasi", style: TextStyle(color: Colors.grey)),
-                    const SizedBox(height: 4),
-                    Text(
-                      "Rp $_totalPrice",
-                      style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.blue),
+                    // Nama Barang Card
+                    _buildSectionCard(
+                      title: "Informasi Barang",
+                      icon: Icons.inventory_2_outlined,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildInputLabel("Nama Barang", isRequired: true),
+                          TextFormField(
+                            controller: _itemController,
+                            validator: (val) =>
+                                val!.isEmpty ? "Nama barang wajib diisi" : null,
+                            decoration: _inputDecor(
+                              "Contoh: Laptop, Kertas A4, Mouse",
+                              icon: Icons.shopping_bag_outlined,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
+                    const SizedBox(height: 16),
+
+                    // Quantity & Price Card
+                    _buildSectionCard(
+                      title: "Detail Harga",
+                      icon: Icons.monetization_on_outlined,
+                      child: Column(
+                        children: [
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _buildInputLabel(
+                                "Jumlah (Qty)",
+                                isRequired: true,
+                              ),
+                              DropdownButtonFormField<int>(
+                                value: _selectedQuantity,
+                                isExpanded: true,
+                                decoration: _inputDecor(
+                                  "Pilih jumlah",
+                                  icon: Icons.format_list_numbered,
+                                ),
+                                items: _quantityOptions.map((qty) {
+                                  return DropdownMenuItem(
+                                    value: qty,
+                                    child: Text("$qty pcs"),
+                                  );
+                                }).toList(),
+                                onChanged: (value) {
+                                  setState(() {
+                                    _selectedQuantity = value!;
+                                    _calculateTotal();
+                                  });
+                                },
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _buildInputLabel(
+                                "Harga Satuan",
+                                isRequired: true,
+                              ),
+                              TextFormField(
+                                controller: _priceController,
+                                keyboardType: TextInputType.number,
+                                inputFormatters: [
+                                  FilteringTextInputFormatter.digitsOnly,
+                                ],
+                                validator: (val) =>
+                                    val!.isEmpty ? "Wajib isi" : null,
+                                decoration: _inputDecor(
+                                  "0",
+                                  icon: Icons.attach_money,
+                                  prefix: "Rp ",
+                                ),
+                                onChanged: (value) {
+                                  final formatted = _formatNumber(value);
+                                  if (formatted != value) {
+                                    _priceController.value = TextEditingValue(
+                                      text: formatted,
+                                      selection: TextSelection.collapsed(
+                                        offset: formatted.length,
+                                      ),
+                                    );
+                                  }
+                                },
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Upload Foto Card
+                    _buildSectionCard(
+                      title: "Foto Barang",
+                      icon: Icons.camera_alt_outlined,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildInputLabel(
+                            "Upload Foto Validasi",
+                            isRequired: true,
+                          ),
+                          const Text(
+                            "Foto barang rusak atau yang akan diajukan",
+                            style: TextStyle(fontSize: 12, color: Colors.grey),
+                          ),
+                          const SizedBox(height: 12),
+                          GestureDetector(
+                            onTap: _showImageSourcePicker,
+                            child: Container(
+                              height: 180,
+                              width: double.infinity,
+                              decoration: BoxDecoration(
+                                color: Colors.grey.shade100,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: _pickedImage == null
+                                      ? Colors.grey.shade300
+                                      : Colors.blue,
+                                  width: 2,
+                                  style: BorderStyle.solid,
+                                ),
+                              ),
+                              child: _pickedImage == null
+                                  ? Column(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        Icon(
+                                          Icons.add_a_photo,
+                                          size: 50,
+                                          color: Colors.grey.shade400,
+                                        ),
+                                        const SizedBox(height: 12),
+                                        Text(
+                                          "Tap untuk ambil foto",
+                                          style: TextStyle(
+                                            color: Colors.grey.shade600,
+                                            fontSize: 14,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          "Kamera atau Galeri",
+                                          style: TextStyle(
+                                            color: Colors.grey.shade500,
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                      ],
+                                    )
+                                  : Stack(
+                                      children: [
+                                        ClipRRect(
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
+                                          child: kIsWeb
+                                              ? Image.network(
+                                                  _pickedImage!.path,
+                                                  width: double.infinity,
+                                                  height: 180,
+                                                  fit: BoxFit.cover,
+                                                  errorBuilder: (context, error, stackTrace) {
+                                                    return Container(
+                                                      width: double.infinity,
+                                                      height: 180,
+                                                      color:
+                                                          Colors.grey.shade200,
+                                                      child: const Center(
+                                                        child: Column(
+                                                          mainAxisAlignment:
+                                                              MainAxisAlignment
+                                                                  .center,
+                                                          children: [
+                                                            Icon(
+                                                              Icons
+                                                                  .check_circle,
+                                                              size: 50,
+                                                              color:
+                                                                  Colors.green,
+                                                            ),
+                                                            SizedBox(height: 8),
+                                                            Text(
+                                                              "Foto berhasil dipilih",
+                                                              style: TextStyle(
+                                                                color: Colors
+                                                                    .green,
+                                                              ),
+                                                            ),
+                                                          ],
+                                                        ),
+                                                      ),
+                                                    );
+                                                  },
+                                                )
+                                              : Image.file(
+                                                  _imageFile!,
+                                                  width: double.infinity,
+                                                  height: 180,
+                                                  fit: BoxFit.cover,
+                                                ),
+                                        ),
+                                        Positioned(
+                                          top: 8,
+                                          right: 8,
+                                          child: GestureDetector(
+                                            onTap: () {
+                                              setState(() {
+                                                _imageFile = null;
+                                                _pickedImage = null;
+                                              });
+                                            },
+                                            child: Container(
+                                              padding: const EdgeInsets.all(6),
+                                              decoration: const BoxDecoration(
+                                                color: Colors.red,
+                                                shape: BoxShape.circle,
+                                              ),
+                                              child: const Icon(
+                                                Icons.close,
+                                                color: Colors.white,
+                                                size: 18,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Total Estimasi Card
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [Colors.blue.shade50, Colors.blue.shade100],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: Colors.blue.shade200,
+                          width: 2,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.blue.withOpacity(0.1),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.calculate_outlined,
+                                color: Colors.blue.shade700,
+                                size: 24,
+                              ),
+                              const SizedBox(width: 8),
+                              const Text(
+                                "Total Estimasi",
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            "Rp ${_formatNumber(_totalPrice.toString())}",
+                            style: TextStyle(
+                              fontSize: 32,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.blue.shade700,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            "$_selectedQuantity pcs × Rp ${_formatNumber(_priceController.text)}",
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey.shade700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Submit Button
+                    SizedBox(
+                      width: double.infinity,
+                      height: 54,
+                      child: ElevatedButton(
+                        onPressed: _isLoading ? null : _submitToCloud,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF1565C0),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          elevation: 3,
+                        ),
+                        child: _isLoading
+                            ? const SizedBox(
+                                height: 24,
+                                width: 24,
+                                child: CircularProgressIndicator(
+                                  color: Colors.white,
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.send, color: Colors.white),
+                                  SizedBox(width: 8),
+                                  Text(
+                                    "KIRIM PENGAJUAN",
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
                   ],
                 ),
               ),
-              const SizedBox(height: 30),
-
-              SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: ElevatedButton(
-                  onPressed: _isLoading ? null : _submitToCloud,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                  child: _isLoading
-                      ? const CircularProgressIndicator(color: Colors.white)
-                      : const Text("KIRIM PENGAJUAN", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                ),
-              )
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  InputDecoration _inputDecor(String hint, {String? prefix}) {
-    return InputDecoration(
-      hintText: hint,
-      prefixText: prefix,
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+  // Helper Widgets
+  Widget _buildSectionCard({
+    required String title,
+    required IconData icon,
+    required Widget child,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.08),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(icon, color: Colors.blue, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          child,
+        ],
+      ),
     );
   }
 
-  Widget _buildInputLabel(String label) {
+  InputDecoration _inputDecor(String hint, {String? prefix, IconData? icon}) {
+    return InputDecoration(
+      hintText: hint,
+      prefixText: prefix,
+      prefixIcon: icon != null ? Icon(icon, size: 20) : null,
+      filled: true,
+      fillColor: Colors.grey.shade50,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: Colors.grey.shade300),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: Colors.grey.shade300),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFF1565C0), width: 2),
+      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+    );
+  }
+
+  Widget _buildInputLabel(String label, {bool isRequired = false}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8.0),
-      child: Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
+      child: Row(
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              fontWeight: FontWeight.w600,
+              fontSize: 14,
+              color: Colors.black87,
+            ),
+          ),
+          if (isRequired)
+            const Text(" *", style: TextStyle(color: Colors.red, fontSize: 14)),
+        ],
+      ),
     );
   }
 }
