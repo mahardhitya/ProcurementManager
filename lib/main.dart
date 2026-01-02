@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:device_preview/device_preview.dart'; // Import plugin ini
+import 'package:procurement/views/auth/user_division/dashboard_user.dart';
 import 'views/auth/login_page.dart'; // Pastikan import ini sesuai dengan folder kamu
 
 void main() {
@@ -34,7 +35,7 @@ class MyApp extends StatelessWidget {
         scaffoldBackgroundColor: Colors.white,
       ),
       
-      home: const LoginPage(),
+      home: const DashboardUser(), // Ganti dengan halaman awal yang diinginkan
     );
   }
 }
