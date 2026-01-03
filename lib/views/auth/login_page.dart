@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'register_page.dart'; // Import halaman register agar bisa navigasi
 import 'user_division/dashboard_user.dart'; // Import dashboard
+import 'widgets/success_dialog.dart'; // Import success dialog
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -18,11 +19,7 @@ class _LoginPageState extends State<LoginPage> {
   bool _isLoading = false;
 
   // Daftar divisi yang tersedia
-  final List<String> _divisions = [
-    'IT',
-    'Marketing',
-    'Operations',
-  ];
+  final List<String> _divisions = ['IT', 'Marketing', 'Operations'];
   String? _selectedDivision;
 
   // Fungsi saat tombol Login ditekan
@@ -52,20 +49,25 @@ class _LoginPageState extends State<LoginPage> {
         _isLoading = false;
       });
 
-      // Simulasi Login Berhasil -> Masuk ke Dashboard
-      // Nanti di sini kita cek Role user (Admin/Divisi) sebelum navigasi
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Login Berhasil!"),
-          backgroundColor: Colors.green,
-        ),
-      );
-
-      // Navigasi ke Dashboard dengan pushReplacement (tidak bisa kembali ke login)
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (context) => DashboardUser(userDivision: _selectedDivision!),
+      // Tampilkan success dialog yang menarik
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        barrierColor: Colors.black.withOpacity(0.5),
+        builder: (context) => SuccessDialog(
+          title: 'Login Berhasil!',
+          message: 'Selamat datang di ProcuMon',
+          onComplete: () {
+            Navigator.of(context).pop(); // Tutup dialog
+            // Navigasi ke Dashboard dengan pushReplacement
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) =>
+                    DashboardUser(userDivision: _selectedDivision!),
+              ),
+            );
+          },
         ),
       );
     }
@@ -116,132 +118,132 @@ class _LoginPageState extends State<LoginPage> {
               ),
               const SizedBox(height: 24),
 
-                // --- INPUT EMAIL ---
-                _buildLabel("Email Address"),
-                TextField(
-                  controller: _emailController,
-                  keyboardType: TextInputType.emailAddress,
-                  decoration: _inputDecoration("Enter your email"),
-                ),
-                const SizedBox(height: 20),
+              // --- INPUT EMAIL ---
+              _buildLabel("Email Address"),
+              TextField(
+                controller: _emailController,
+                keyboardType: TextInputType.emailAddress,
+                decoration: _inputDecoration("Enter your email"),
+              ),
+              const SizedBox(height: 20),
 
-                // --- INPUT PASSWORD ---
-                _buildLabel("Password"),
-                TextField(
-                  controller: _passwordController,
-                  obscureText: _isObscure,
-                  decoration: _inputDecoration("Enter your password").copyWith(
-                    // Tombol Mata (US-007)
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _isObscure ? Icons.visibility_off : Icons.visibility,
-                        color: Colors.grey,
-                      ),
-                      onPressed: () {
-                        setState(() {
-                          _isObscure = !_isObscure;
-                        });
-                      },
+              // --- INPUT PASSWORD ---
+              _buildLabel("Password"),
+              TextField(
+                controller: _passwordController,
+                obscureText: _isObscure,
+                decoration: _inputDecoration("Enter your password").copyWith(
+                  // Tombol Mata (US-007)
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _isObscure ? Icons.visibility_off : Icons.visibility,
+                      color: Colors.grey,
                     ),
+                    onPressed: () {
+                      setState(() {
+                        _isObscure = !_isObscure;
+                      });
+                    },
                   ),
                 ),
-                const SizedBox(height: 16),
+              ),
+              const SizedBox(height: 16),
 
-                // --- DROPDOWN DIVISI ---
-                _buildLabel("Division"),
-                DropdownButtonFormField<String>(
-                  value: _selectedDivision,
-                  decoration: _inputDecoration("Select your division"),
-                  items: _divisions.map((division) {
-                    return DropdownMenuItem(
-                      value: division,
-                      child: Text(division),
-                    );
-                  }).toList(),
-                  onChanged: (value) {
-                    setState(() {
-                      _selectedDivision = value;
-                    });
+              // --- DROPDOWN DIVISI ---
+              _buildLabel("Division"),
+              DropdownButtonFormField<String>(
+                value: _selectedDivision,
+                decoration: _inputDecoration("Select your division"),
+                items: _divisions.map((division) {
+                  return DropdownMenuItem(
+                    value: division,
+                    child: Text(division),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  setState(() {
+                    _selectedDivision = value;
+                  });
+                },
+              ),
+
+              // Lupa Password
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: () {
+                    // Fitur reset password (bisa ditambahkan nanti)
                   },
+                  child: const Text(
+                    "Forgot Password?",
+                    style: TextStyle(color: Colors.blue, fontSize: 13),
+                  ),
                 ),
+              ),
+              const SizedBox(height: 10),
 
-                // Lupa Password
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton(
-                    onPressed: () {
-                      // Fitur reset password (bisa ditambahkan nanti)
+              // --- TOMBOL LOGIN ---
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    elevation: 2,
+                  ),
+                  onPressed: _isLoading ? null : _handleLogin,
+                  child: _isLoading
+                      ? const CircularProgressIndicator(color: Colors.white)
+                      : const Text(
+                          "Login",
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                ),
+              ),
+
+              const SizedBox(height: 20),
+              // --- LINK KE REGISTER ---
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Text(
+                    "Don't have an account? ",
+                    style: TextStyle(color: Colors.grey, fontSize: 14),
+                  ),
+                  GestureDetector(
+                    onTap: () {
+                      // Navigasi ke Halaman Register
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const RegisterPage(),
+                        ),
+                      );
                     },
                     child: const Text(
-                      "Forgot Password?",
-                      style: TextStyle(color: Colors.blue, fontSize: 13),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 10),
-
-                // --- TOMBOL LOGIN ---
-                SizedBox(
-                  width: double.infinity,
-                  height: 48,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      elevation: 2,
-                    ),
-                    onPressed: _isLoading ? null : _handleLogin,
-                    child: _isLoading
-                        ? const CircularProgressIndicator(color: Colors.white)
-                        : const Text(
-                            "Login",
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
-                            ),
-                          ),
-                  ),
-                ),
-
-                const SizedBox(height: 20),
-                // --- LINK KE REGISTER ---
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Text(
-                      "Don't have an account? ",
-                      style: TextStyle(color: Colors.grey, fontSize: 14),
-                    ),
-                    GestureDetector(
-                      onTap: () {
-                        // Navigasi ke Halaman Register
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const RegisterPage(),
-                          ),
-                        );
-                      },
-                      child: const Text(
-                        "Sign Up",
-                        style: TextStyle(
-                          color: Colors.blue,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                        ),
+                      "Sign Up",
+                      style: TextStyle(
+                        color: Colors.blue,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
                       ),
                     ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-              ],
-            ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+            ],
           ),
         ),
-      );
+      ),
+    );
   }
 
   // Widget Helper untuk Label
