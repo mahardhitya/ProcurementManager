@@ -5,6 +5,7 @@ class MonthlyBudgetsModel {
    final String month_index;
    final String total_revenue;
    final String total_expense;
+   final String is_surplus;
 
    MonthlyBudgetsModel({
       required this.id,
@@ -12,17 +13,19 @@ class MonthlyBudgetsModel {
       required this.month_name,
       required this.month_index,
       required this.total_revenue,
-      required this.total_expense
+      required this.total_expense,
+      required this.is_surplus
    });
 
    factory MonthlyBudgetsModel.fromJson(Map data) {
       return MonthlyBudgetsModel(
-         id: data['_id'],
-         fiscal_year_id: data['fiscal_year_id'],
-         month_name: data['month_name'],
-         month_index: data['month_index'],
-         total_revenue: data['total_revenue'],
-         total_expense: data['total_expense']
+         id: data['id'] ?? data['_id'] ?? '',
+         fiscal_year_id: data['fiscal_year_id'] ?? '',
+         month_name: data['month_name'] ?? '',
+         month_index: data['month_index'] ?? '',
+         total_revenue: data['total_revenue'] ?? '',
+         total_expense: data['total_expense'] ?? '',
+         is_surplus: data['is_surplus'] ?? ''
       );
    }
 }

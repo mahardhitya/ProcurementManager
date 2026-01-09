@@ -1,18 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:device_preview/device_preview.dart';
 
-// --- IMPORT HALAMAN ---
+// Import halaman
 import 'views/auth/login_page.dart';
-import 'views/auth/user_division/dashboard_user.dart';
-import 'views/admin/dashboard_admin_page.dart';
-// Pastikan Anda mengimport halaman Detail Bulan & Profile yang sudah dibuat sebelumnya
-import 'views/admin/admin_month_detail_page.dart'; // Sesuaikan path ini dengan file Anda
- // Sesuaikan path ini (jika ada fitur profile)
+import 'views/auth/register_page.dart';
+import 'views/admin/admin_dashboard.dart';
+import 'views/admin/monthly_detail_page.dart';
+import 'views/user/user_dashboard.dart';
+import 'views/user/add_request_screen.dart';
+import 'views/user/profile_screen.dart';
+import 'models/monthly_budgets_model.dart';
 
 void main() {
   runApp(
     DevicePreview(
-      enabled: true, // Ubah ke false jika ingin build rilis (APK)
+      enabled: true,
       builder: (context) => const MyApp(),
     ),
   );
@@ -24,10 +26,9 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Finance App',
+      title: 'Procurement Monitoring',
       debugShowCheckedModeBanner: false,
       
-      // Konfigurasi Device Preview
       locale: DevicePreview.locale(context),
       builder: DevicePreview.appBuilder,
 
@@ -40,22 +41,30 @@ class MyApp extends StatelessWidget {
         scaffoldBackgroundColor: Colors.white,
       ),
 
-      // --- PENGATURAN ROUTE (PENTING) ---
-      // Tentukan halaman awal aplikasi
-      initialRoute: '/admin/dashboard', 
+      initialRoute: '/login', 
       
-      // Daftarkan semua nama route di sini agar pushNamed berfungsi
       routes: {
-        // Route Login
         '/login': (context) => const LoginPage(),
-        
-        // Route Admin
-        '/admin/dashboard': (context) => const AdminDashboardPage(),
-        '/admin/month-detail': (context) => const AdminMonthDetailPage(), 
-        // Route User Divisi
-        '/user/dashboard': (context) => const DashboardUser(),
-        
-
+        '/register': (context) => const RegisterPage(),
+        '/admin/dashboard': (context) => const AdminDashboard(),
+        '/user/dashboard': (context) => const UserDashboard(),
+        '/profile': (context) => const ProfileScreen(),
+        '/admin/month-detail': (context) {
+          final budget = ModalRoute.of(context)?.settings.arguments as MonthlyBudgetsModel?;
+          return MonthlyDetailPage(budget: budget ?? MonthlyBudgetsModel(id: '', fiscal_year_id: '', month_name: '', month_index: '', total_revenue: '', total_expense: '', is_surplus: ''));
+        },
+        '/monthly-detail': (context) {
+          final budget = ModalRoute.of(context)?.settings.arguments as MonthlyBudgetsModel?;
+          return MonthlyDetailPage(budget: budget ?? MonthlyBudgetsModel(id: '', fiscal_year_id: '', month_name: '', month_index: '', total_revenue: '', total_expense: '', is_surplus: ''));
+        },
+        '/add-request': (context) {
+          // TODO: Get from session
+          return const AddRequestScreen(
+            monthlyBudgetId: '',
+            userId: '',
+            divisionName: '',
+          );
+        },
       },
     );
   }

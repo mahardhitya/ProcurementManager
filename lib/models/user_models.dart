@@ -1,48 +1,49 @@
 class UsersModel {
-  final String? id;
+  final String id;
   final String name;
   final String email;
   final String password;
   final String role;
-  final String? divisionId;
-  final String? divisionName;
+  final String division_id;
+  final String division_name;
 
   UsersModel({
-    this.id,
+    required this.id,
     required this.name,
     required this.email,
     required this.password,
     required this.role,
-    this.divisionId,
-    this.divisionName,
+    required this.division_id,
+    required this.division_name,
   });
 
   factory UsersModel.fromJson(Map<String, dynamic> data) {
     return UsersModel(
-      id: data['_id']?.toString() ?? data['id']?.toString(),
-      name: data['name']?.toString() ?? '',
-      email: data['email']?.toString() ?? '',
-      password: data['password']?.toString() ?? '',
-      role: data['role']?.toString() ?? 'divisi',
-      divisionId: data['division_id']?.toString(),
-      divisionName: data['division_name']?.toString(),
+      id: data['id'] ?? data['_id'] ?? '',
+      name: data['name'] ?? '',
+      email: data['email'] ?? '',
+      password: data['password'] ?? '',
+      role: data['role'] ?? 'user',
+      division_id: data['division_id'] ?? '',
+      division_name: data['division_name'] ?? '',
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
-      if (id != null) 'id': id,
+      'id': id,
       'name': name,
       'email': email,
       'password': password,
       'role': role,
-      'division_id': divisionId ?? '',
+      'division_id': division_id,
+      'division_name': division_name,
     };
   }
 
   // Helper methods
   bool get isAdmin => role.toLowerCase() == 'admin';
-  bool get isDivision => role.toLowerCase() == 'divisi';
+  bool get isUser => role.toLowerCase() == 'user';
   
   UsersModel copyWith({
     String? id,
@@ -50,8 +51,8 @@ class UsersModel {
     String? email,
     String? password,
     String? role,
-    String? divisionId,
-    String? divisionName,
+    String? division_id,
+    String? division_name,
   }) {
     return UsersModel(
       id: id ?? this.id,
@@ -59,8 +60,8 @@ class UsersModel {
       email: email ?? this.email,
       password: password ?? this.password,
       role: role ?? this.role,
-      divisionId: divisionId ?? this.divisionId,
-      divisionName: divisionName ?? this.divisionName,
+      division_id: division_id ?? this.division_id,
+      division_name: division_name ?? this.division_name,
     );
   }
 }

@@ -11,9 +11,9 @@ class DivisionsModel {
 
    factory DivisionsModel.fromJson(Map data) {
       return DivisionsModel(
-          id: data['_id']?.toString() ?? data['id']?.toString() ?? '',
-      name: data['name']?.toString() ?? '',
-      code: data['code']?.toString() ?? '',
+         id: data['id'] ?? data['_id'] ?? '',
+         name: data['name'] ?? '',
+         code: data['code'] ?? ''
       );
    }
 }

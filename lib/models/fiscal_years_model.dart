@@ -11,9 +11,9 @@ class FiscalYearsModel {
 
    factory FiscalYearsModel.fromJson(Map data) {
       return FiscalYearsModel(
-         id: data['_id'],
-         year: data['year'],
-         status: data['status']
+         id: data['id'] ?? data['_id'] ?? '',
+         year: data['year'] ?? '',
+         status: data['status'] ?? ''
       );
    }
 }

@@ -19,7 +19,14 @@ class DataService {
     body['project'] = AppConfig.project;
 
     try {
-      final response = await http.post(Uri.parse(uri), body: body);
+      final response = await http.post(
+        Uri.parse(uri), 
+        body: body,
+        headers: {
+          "Accept": "application/json",
+          "Content-Type": "application/x-www-form-urlencoded",
+        }
+      );
       return response.body;
     } catch (e) {
       return '{"error": "Exception", "message": "$e"}';
@@ -147,6 +154,11 @@ class DataService {
   // 3. FUNGSI SELECT (READ)
   // =======================================================================
   
+  Future<String> getAll(String collection, String appid) async {
+    String uri = '${AppConfig.baseUrl}/select_all/token/${AppConfig.token}/project/${AppConfig.project}/collection/$collection/appid/$appid';
+    return _getRequest(uri);
+  }
+  
   Future selectAll(String collection, String appid) async {
     String uri = '${AppConfig.baseUrl}/select_all/token/${AppConfig.token}/project/${AppConfig.project}/collection/$collection/appid/$appid';
     return _getRequest(uri);
@@ -164,6 +176,27 @@ class DataService {
     
     String uri = '${AppConfig.baseUrl}/select_where/token/${AppConfig.token}/project/${AppConfig.project}/collection/$collection/appid/$appid/where_field/$f/where_value/$v';
     return _getRequest(uri);
+  }
+
+  // =======================================================================
+  // Generic Insert Data Method
+  // =======================================================================
+  
+  Future<String> insertData(String collection, String appid, Map<String, dynamic> data) async {
+    final body = <String, String>{
+      'collection': collection,
+      'appid': appid,
+      'token': AppConfig.token,
+      'project': AppConfig.project,
+    };
+    
+    // Convert all data values to strings
+    data.forEach((key, value) {
+      body[key] = value.toString();
+    });
+    
+    
+    return _postRequest('insert', body);
   }
 
   // =======================================================================
