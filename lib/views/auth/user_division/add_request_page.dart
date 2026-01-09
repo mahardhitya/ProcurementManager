@@ -3,8 +3,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
+import 'dart:convert'; // Untuk jsonDecode
 import 'dashboard_user.dart'; // Import untuk update dummy data
 import 'package:intl/intl.dart'; // Untuk format tanggal
+import 'package:shared_preferences/shared_preferences.dart'; // Untuk session user
+import '../../../core/restapi.dart'; // Import DataService
+import '../../../core/config.dart'; // Import AppConfig
 
 class AddRequestPage extends StatefulWidget {
   final String monthName; // Kita butuh ini untuk menandai data masuk bulan apa
@@ -71,43 +75,10 @@ class _AddRequestPageState extends State<AddRequestPage> {
     }
   }
 
-  // Show bottom sheet untuk pilih kamera atau galeri
+  // Langsung buka galeri untuk pilih foto
   void _showImageSourcePicker() {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              "Pilih Sumber Foto",
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 20),
-            ListTile(
-              leading: const Icon(Icons.camera_alt, color: Colors.blue),
-              title: const Text("Kamera"),
-              onTap: () {
-                Navigator.pop(context);
-                _pickImage(ImageSource.camera);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.photo_library, color: Colors.green),
-              title: const Text("Galeri"),
-              onTap: () {
-                Navigator.pop(context);
-                _pickImage(ImageSource.gallery);
-              },
-            ),
-          ],
-        ),
-      ),
-    );
+    // Langsung buka galeri tanpa menampilkan dialog pilihan
+    _pickImage(ImageSource.gallery);
   }
 
   // Format angka dengan pemisah ribuan
@@ -122,7 +93,7 @@ class _AddRequestPageState extends State<AddRequestPage> {
     );
   }
 
-  // CORE LOGIC: Save to GoCloud (Dummy Mode untuk Testing)
+  // CORE LOGIC: Save to GoCloud (API Mode)
   Future<void> _submitToCloud() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -139,51 +110,32 @@ class _AddRequestPageState extends State<AddRequestPage> {
 
     setState(() => _isLoading = true);
 
-    // Simulasi delay untuk loading effect
-    await Future.delayed(const Duration(seconds: 1));
-
     try {
-      // Mode Dummy: Langsung sukses tanpa API call
-      // Buat data baru
-      final newRequest = {
-        'item_name': _itemController.text,
-        'quantity': _selectedQuantity,
-        'price': int.parse(_priceController.text.replaceAll('.', '')),
-        'status': 'Pending',
-        'date': DateFormat('yyyy-MM-dd').format(DateTime.now()),
-        'division': widget.userDivision, // Tambahkan divisi user
-      };
+      // Ambil data user dari SharedPreferences
+      final prefs = await SharedPreferences.getInstance();
+      String userId = prefs.getString('user_id') ?? 'USER-GUEST';
+      String divisionName =
+          prefs.getString('division_name') ?? widget.userDivision;
 
-      // Tambahkan ke dummy data
-      DashboardUser.addNewRequest(widget.monthName, newRequest);
-
-      if (mounted) {
-        setState(() => _isLoading = false);
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Pengajuan berhasil dikirim!"),
-            backgroundColor: Colors.green,
-          ),
-        );
-        Navigator.pop(context, true);
-        return;
-      }
-
-      // Uncomment kode di bawah ini jika ingin menggunakan API real
-      /*
+      // Panggil API untuk insert procurement request
       final dataService = DataService();
-      
+
       String response = await dataService.insertProcurementRequests(
-        '693cbdff23173f13b93c2291',    // App ID
-        widget.monthName,              // Simpan nama bulan di kolom monthly_budget_id
-        'USER-123',                    // User ID (Dummy dulu/ambil dari session)
-        _itemController.text,
-        _selectedQuantity.toString(),
-        _priceController.text.replaceAll('.', ''),
-        _totalPrice.toString(),
-        'Pending',                     // Status default
-        'IT Dept'                      // Divisi (Dummy dulu)
+        AppConfig.appid, // App ID dari config
+        widget.monthName, // monthly_budget_id (simpan nama bulan)
+        userId, // User ID dari session
+        _itemController.text, // item_name
+        _selectedQuantity.toString(), // quantity
+        _priceController.text.replaceAll(
+          '.',
+          '',
+        ), // price (hapus pemisah ribuan)
+        _totalPrice.toString(), // total_price
+        'Pending', // Status default
+        divisionName, // division_name dari session
+        DateFormat('yyyy-MM-dd').format(DateTime.now()), // date
+        widget.monthName, // month_name
+        _pickedImage!.path, // image_path
       );
 
       // Parsing response
@@ -194,15 +146,28 @@ class _AddRequestPageState extends State<AddRequestPage> {
 
         // Validasi response dari GoCloud (Biasanya return List/Map yg berisi ID)
         if (decodedData is List && decodedData.isNotEmpty) {
+          // Juga tambahkan ke dummy data untuk tampilan langsung
+          final newRequest = {
+            'item_name': _itemController.text,
+            'quantity': _selectedQuantity,
+            'price': int.parse(_priceController.text.replaceAll('.', '')),
+            'status': 'Pending',
+            'date': DateFormat('yyyy-MM-dd').format(DateTime.now()),
+            'division': divisionName,
+          };
+          DashboardUser.addNewRequest(widget.monthName, newRequest);
+
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Pengajuan berhasil dikirim!"), backgroundColor: Colors.green),
+            const SnackBar(
+              content: Text("Pengajuan berhasil dikirim!"),
+              backgroundColor: Colors.green,
+            ),
           );
           Navigator.pop(context, true); // Kembali & trigger refresh
         } else {
           throw Exception("Gagal menyimpan: $response");
         }
       }
-      */
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -424,7 +389,7 @@ class _AddRequestPageState extends State<AddRequestPage> {
                                         ),
                                         const SizedBox(height: 12),
                                         Text(
-                                          "Tap untuk ambil foto",
+                                          "Tap untuk pilih foto",
                                           style: TextStyle(
                                             color: Colors.grey.shade600,
                                             fontSize: 14,
@@ -432,7 +397,7 @@ class _AddRequestPageState extends State<AddRequestPage> {
                                         ),
                                         const SizedBox(height: 4),
                                         Text(
-                                          "Kamera atau Galeri",
+                                          "Dari Galeri",
                                           style: TextStyle(
                                             color: Colors.grey.shade500,
                                             fontSize: 12,
