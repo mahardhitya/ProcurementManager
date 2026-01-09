@@ -15,15 +15,12 @@ class _RegisterPageState extends State<RegisterPage> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _phoneController = TextEditingController();
 
   bool _isLoading = false;
 
   // Daftar divisi yang tersedia
-  final List<String> _divisions = [
-    'IT',
-    'Marketing',
-    'Operations',
-  ];
+  final List<String> _divisions = ['IT', 'Marketing', 'Operations'];
   String? _selectedDivision;
 
   // Fungsi saat tombol Sign Up ditekan
@@ -32,6 +29,7 @@ class _RegisterPageState extends State<RegisterPage> {
     if (_nameController.text.isEmpty ||
         _emailController.text.isEmpty ||
         _passwordController.text.isEmpty ||
+        _phoneController.text.isEmpty ||
         _selectedDivision == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -58,7 +56,7 @@ class _RegisterPageState extends State<RegisterPage> {
       _passwordController.text,
       'user', // Role default (ganti dari 'divisi')
       _selectedDivision!, // Gunakan divisi yang dipilih
-      '', // Add the 7th argument - check insertUsers method signature for what this should be
+      _phoneController.text, // Nomor telepon dari input
     );
 
     var data = jsonDecode(response);
@@ -147,6 +145,13 @@ class _RegisterPageState extends State<RegisterPage> {
               const SizedBox(height: 20),
               _buildTextField("Email Address", "Enter email", _emailController),
               const SizedBox(height: 20),
+              _buildTextField(
+                "Phone Number",
+                "Enter your phone number",
+                _phoneController,
+                isPhone: true,
+              ),
+              const SizedBox(height: 20),
 
               // --- DROPDOWN DIVISI ---
               _buildLabel("Division"),
@@ -228,6 +233,7 @@ class _RegisterPageState extends State<RegisterPage> {
     String hint,
     TextEditingController controller, {
     bool isPassword = false,
+    bool isPhone = false,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -240,6 +246,7 @@ class _RegisterPageState extends State<RegisterPage> {
         TextField(
           controller: controller,
           obscureText: isPassword,
+          keyboardType: isPhone ? TextInputType.phone : TextInputType.text,
           decoration: InputDecoration(
             hintText: hint,
             hintStyle: TextStyle(color: Colors.grey.shade400),

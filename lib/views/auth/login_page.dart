@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart'; // Untuk session user
 import 'register_page.dart'; // Import halaman register agar bisa navigasi
 import 'user_division/dashboard_user.dart'; // Import dashboard
 import 'widgets/success_dialog.dart'; // Import success dialog
@@ -48,6 +49,20 @@ class _LoginPageState extends State<LoginPage> {
       setState(() {
         _isLoading = false;
       });
+
+      // Simpan data user ke SharedPreferences
+      final prefs = await SharedPreferences.getInstance();
+
+      // Generate user_id dummy dari email (nanti diganti dengan user_id dari API)
+      String userId =
+          'USER-${_emailController.text.split('@')[0]}-${_selectedDivision}';
+      await prefs.setString('user_id', userId);
+      await prefs.setString('user_email', _emailController.text);
+      await prefs.setString('division_name', _selectedDivision!);
+
+      print(
+        'User logged in: $userId, Division: $_selectedDivision',
+      ); // Debug log
 
       // Tampilkan success dialog yang menarik
       showDialog(
