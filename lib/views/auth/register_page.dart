@@ -52,7 +52,9 @@ class _RegisterPageState extends State<RegisterPage> {
         }
       } else {
         // Fallback: Hardcode data divisi jika API kosong/error
-        debugPrint('DEBUG: API response kosong atau bukan List, gunakan hardcode');
+        debugPrint(
+          'DEBUG: API response kosong atau bukan List, gunakan hardcode',
+        );
         if (mounted) {
           setState(() {
             _divisions = [
@@ -153,7 +155,12 @@ class _RegisterPageState extends State<RegisterPage> {
     try {
       // Cek email sudah ada atau belum
       final svc = DataService();
-      final checkResp = await svc.selectWhere('users', AppConfig.appid, 'email', email);
+      final checkResp = await svc.selectWhere(
+        'users',
+        AppConfig.appid,
+        'email',
+        email,
+      );
       final checkData = json.decode(checkResp);
 
       if (checkData is List && checkData.isNotEmpty) {
@@ -163,7 +170,9 @@ class _RegisterPageState extends State<RegisterPage> {
       }
 
       // Ambil division name
-      final divisionName = _divisions.firstWhere((d) => d.id == _selectedDivision).name;
+      final divisionName = _divisions
+          .firstWhere((d) => d.id == _selectedDivision)
+          .name;
 
       // Insert user
       final body = {
@@ -177,16 +186,75 @@ class _RegisterPageState extends State<RegisterPage> {
 
       final resp = await svc.insertData('users', AppConfig.appid, body);
       debugPrint('DEBUG REGISTER: API Response = $resp');
-      final insertData = json.decode(resp);
-      debugPrint('DEBUG REGISTER: Parsed Data = $insertData');
 
-      if (insertData is Map && insertData.containsKey('id')) {
-        _showSuccessToast('Pendaftaran berhasil! Silakan login');
-        if (!mounted) return;
-        Navigator.pushReplacementNamed(context, '/login');
-      } else {
-        debugPrint('DEBUG REGISTER: Insert gagal - bukan Map atau tidak punya ID');
-        _showToast('Pendaftaran gagal, coba lagi');
+      // Cek apakah response kosong atau error
+      if (resp.isEmpty) {
+        debugPrint('DEBUG REGISTER: Response kosong');
+        _showToast('Pendaftaran gagal: Response kosong dari server');
+        setState(() => _loading = false);
+        return;
+      }
+
+      if (resp.toLowerCase().contains('"error"') ||
+          resp.toLowerCase().contains('networkerror') ||
+          resp.toLowerCase().contains('failed')) {
+        debugPrint('DEBUG REGISTER: Response mengandung error');
+        _showToast('Pendaftaran gagal: $resp');
+        setState(() => _loading = false);
+        return;
+      }
+
+      try {
+        final insertData = json.decode(resp);
+        debugPrint('DEBUG REGISTER: Parsed Data = $insertData');
+        debugPrint('DEBUG REGISTER: Data Type = ${insertData.runtimeType}');
+
+        // Validasi ketat: response harus berupa Map dengan id
+        if (insertData is Map &&
+            (insertData.containsKey('id') || insertData.containsKey('_id'))) {
+          final insertedId = insertData['id'] ?? insertData['_id'];
+          debugPrint(
+            'DEBUG REGISTER: Data berhasil disimpan dengan ID: $insertedId',
+          );
+
+          // Verifikasi dengan membaca kembali data yang baru saja disimpan
+          debugPrint('DEBUG REGISTER: Verifikasi data...');
+          final verifyResp = await svc.selectWhere(
+            'users',
+            AppConfig.appid,
+            'email',
+            email,
+          );
+          debugPrint('DEBUG REGISTER: Verify Response = $verifyResp');
+
+          final verifyData = json.decode(verifyResp);
+          if (verifyData is List && verifyData.isNotEmpty) {
+            debugPrint(
+              'DEBUG REGISTER: Verifikasi berhasil - data ditemukan di database',
+            );
+            _showSuccessToast('Pendaftaran berhasil! Silakan login');
+            if (!mounted) return;
+
+            await Future.delayed(const Duration(milliseconds: 1500));
+            if (!mounted) return;
+
+            Navigator.pushReplacementNamed(context, '/login');
+          } else {
+            debugPrint(
+              'DEBUG REGISTER: Verifikasi gagal - data tidak ditemukan di database',
+            );
+            _showToast(
+              'Pendaftaran mungkin gagal. Data tidak dapat diverifikasi. Coba lagi.',
+            );
+          }
+        } else {
+          debugPrint('DEBUG REGISTER: Response tidak mengandung ID');
+          _showToast('Pendaftaran gagal: Response tidak valid (tidak ada ID)');
+        }
+      } catch (parseError) {
+        debugPrint('DEBUG REGISTER: Error parsing JSON: $parseError');
+        debugPrint('DEBUG REGISTER: Raw response: $resp');
+        _showToast('Pendaftaran gagal: Format response tidak valid');
       }
     } catch (e) {
       _showToast('Terjadi kesalahan: $e');
@@ -196,7 +264,6 @@ class _RegisterPageState extends State<RegisterPage> {
       }
     }
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -209,7 +276,7 @@ class _RegisterPageState extends State<RegisterPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SizedBox(height: 20),
-              
+
               // Back Button
               GestureDetector(
                 onTap: () => Navigator.pop(context),
@@ -220,7 +287,11 @@ class _RegisterPageState extends State<RegisterPage> {
               // Header
               const Text(
                 'Daftar Account',
-                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.blue),
+                style: TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.blue,
+                ),
               ),
               const Text(
                 'Buat akun baru Anda',
@@ -229,7 +300,10 @@ class _RegisterPageState extends State<RegisterPage> {
               const SizedBox(height: 30),
 
               // Nama
-              const Text('Nama Lengkap', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+              const Text(
+                'Nama Lengkap',
+                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+              ),
               const SizedBox(height: 8),
               TextField(
                 controller: _name,
@@ -238,7 +312,10 @@ class _RegisterPageState extends State<RegisterPage> {
                   hintStyle: TextStyle(color: Colors.grey.shade400),
                   filled: true,
                   fillColor: Colors.grey.shade50,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+                  contentPadding: const EdgeInsets.symmetric(
+                    vertical: 16,
+                    horizontal: 16,
+                  ),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                     borderSide: BorderSide.none,
@@ -252,7 +329,10 @@ class _RegisterPageState extends State<RegisterPage> {
               const SizedBox(height: 16),
 
               // Email
-              const Text('Email', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+              const Text(
+                'Email',
+                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+              ),
               const SizedBox(height: 8),
               TextField(
                 controller: _email,
@@ -262,7 +342,10 @@ class _RegisterPageState extends State<RegisterPage> {
                   hintStyle: TextStyle(color: Colors.grey.shade400),
                   filled: true,
                   fillColor: Colors.grey.shade50,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+                  contentPadding: const EdgeInsets.symmetric(
+                    vertical: 16,
+                    horizontal: 16,
+                  ),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                     borderSide: BorderSide.none,
@@ -276,7 +359,10 @@ class _RegisterPageState extends State<RegisterPage> {
               const SizedBox(height: 16),
 
               // Password
-              const Text('Password', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+              const Text(
+                'Password',
+                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+              ),
               const SizedBox(height: 8),
               TextField(
                 controller: _password,
@@ -286,7 +372,10 @@ class _RegisterPageState extends State<RegisterPage> {
                   hintStyle: TextStyle(color: Colors.grey.shade400),
                   filled: true,
                   fillColor: Colors.grey.shade50,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+                  contentPadding: const EdgeInsets.symmetric(
+                    vertical: 16,
+                    horizontal: 16,
+                  ),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                     borderSide: BorderSide.none,
@@ -300,14 +389,18 @@ class _RegisterPageState extends State<RegisterPage> {
                       _showPassword ? Icons.visibility : Icons.visibility_off,
                       color: Colors.grey,
                     ),
-                    onPressed: () => setState(() => _showPassword = !_showPassword),
+                    onPressed: () =>
+                        setState(() => _showPassword = !_showPassword),
                   ),
                 ),
               ),
               const SizedBox(height: 16),
 
               // Konfirmasi Password
-              const Text('Konfirmasi Password', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+              const Text(
+                'Konfirmasi Password',
+                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+              ),
               const SizedBox(height: 8),
               TextField(
                 controller: _passwordConfirm,
@@ -317,7 +410,10 @@ class _RegisterPageState extends State<RegisterPage> {
                   hintStyle: TextStyle(color: Colors.grey.shade400),
                   filled: true,
                   fillColor: Colors.grey.shade50,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+                  contentPadding: const EdgeInsets.symmetric(
+                    vertical: 16,
+                    horizontal: 16,
+                  ),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                     borderSide: BorderSide.none,
@@ -328,31 +424,40 @@ class _RegisterPageState extends State<RegisterPage> {
                   ),
                   suffixIcon: IconButton(
                     icon: Icon(
-                      _showPasswordConfirm ? Icons.visibility : Icons.visibility_off,
+                      _showPasswordConfirm
+                          ? Icons.visibility
+                          : Icons.visibility_off,
                       color: Colors.grey,
                     ),
-                    onPressed: () => setState(() => _showPasswordConfirm = !_showPasswordConfirm),
+                    onPressed: () => setState(
+                      () => _showPasswordConfirm = !_showPasswordConfirm,
+                    ),
                   ),
                 ),
               ),
               const SizedBox(height: 16),
 
               // Role
-              const Text('Role', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+              const Text(
+                'Role',
+                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+              ),
               const SizedBox(height: 8),
               DropdownButtonFormField<String>(
                 value: _selectedRole,
                 items: const [
                   DropdownMenuItem(value: 'user', child: Text('User')),
                   DropdownMenuItem(value: 'admin', child: Text('Admin')),
-                ]
-                    .map((e) => e)
-                    .toList(),
-                onChanged: (val) => setState(() => _selectedRole = val ?? 'user'),
+                ].map((e) => e).toList(),
+                onChanged: (val) =>
+                    setState(() => _selectedRole = val ?? 'user'),
                 decoration: InputDecoration(
                   filled: true,
                   fillColor: Colors.grey.shade50,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+                  contentPadding: const EdgeInsets.symmetric(
+                    vertical: 16,
+                    horizontal: 16,
+                  ),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                     borderSide: BorderSide.none,
@@ -366,7 +471,10 @@ class _RegisterPageState extends State<RegisterPage> {
               const SizedBox(height: 16),
 
               // Divisi
-              const Text('Divisi', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+              const Text(
+                'Divisi',
+                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+              ),
               const SizedBox(height: 8),
               _loading
                   ? const Padding(
@@ -374,42 +482,56 @@ class _RegisterPageState extends State<RegisterPage> {
                       child: CircularProgressIndicator(),
                     )
                   : _divisions.isEmpty
-                      ? Container(
-                          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
-                          decoration: BoxDecoration(
-                            color: Colors.grey.shade50,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: Colors.grey.shade300),
-                          ),
-                          child: const Text(
-                            'Tidak ada data divisi tersedia',
-                            style: TextStyle(color: Colors.grey),
-                          ),
-                        )
-                      : DropdownButtonFormField<String>(
-                          value: _selectedDivision.isEmpty ? null : _selectedDivision,
-                          items: _divisions
-                              .map((d) => DropdownMenuItem(
-                                    value: d.id,
-                                    child: Text(d.name),
-                                  ))
-                              .toList(),
-                          onChanged: (val) => setState(() => _selectedDivision = val ?? ''),
-                          decoration: InputDecoration(
-                            hintText: 'Pilih divisi',
-                            filled: true,
-                            fillColor: Colors.grey.shade50,
-                            contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide.none,
+                  ? Container(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 16,
+                        horizontal: 16,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade50,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.grey.shade300),
+                      ),
+                      child: const Text(
+                        'Tidak ada data divisi tersedia',
+                        style: TextStyle(color: Colors.grey),
+                      ),
+                    )
+                  : DropdownButtonFormField<String>(
+                      value: _selectedDivision.isEmpty
+                          ? null
+                          : _selectedDivision,
+                      items: _divisions
+                          .map(
+                            (d) => DropdownMenuItem(
+                              value: d.id,
+                              child: Text(d.name),
                             ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: const BorderSide(color: Colors.blue, width: 2),
-                            ),
+                          )
+                          .toList(),
+                      onChanged: (val) =>
+                          setState(() => _selectedDivision = val ?? ''),
+                      decoration: InputDecoration(
+                        hintText: 'Pilih divisi',
+                        filled: true,
+                        fillColor: Colors.grey.shade50,
+                        contentPadding: const EdgeInsets.symmetric(
+                          vertical: 16,
+                          horizontal: 16,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(
+                            color: Colors.blue,
+                            width: 2,
                           ),
                         ),
+                      ),
+                    ),
               const SizedBox(height: 24),
 
               // Register Button
@@ -419,12 +541,21 @@ class _RegisterPageState extends State<RegisterPage> {
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blue,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                   onPressed: _loading ? null : _register,
                   child: _loading
                       ? const CircularProgressIndicator(color: Colors.white)
-                      : const Text('Daftar', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+                      : const Text(
+                          'Daftar',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
                 ),
               ),
               const SizedBox(height: 16),
@@ -433,10 +564,19 @@ class _RegisterPageState extends State<RegisterPage> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Text('Sudah punya akun? ', style: TextStyle(color: Colors.grey)),
+                  const Text(
+                    'Sudah punya akun? ',
+                    style: TextStyle(color: Colors.grey),
+                  ),
                   GestureDetector(
                     onTap: () => Navigator.pushNamed(context, '/login'),
-                    child: const Text('Login', style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold)),
+                    child: const Text(
+                      'Login',
+                      style: TextStyle(
+                        color: Colors.blue,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ),
                 ],
               ),

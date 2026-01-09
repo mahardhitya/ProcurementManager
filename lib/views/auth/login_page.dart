@@ -59,13 +59,37 @@ class _LoginPageState extends State<LoginPage> {
 
     try {
       final svc = DataService();
-      final resp = await svc.selectWhere('users', AppConfig.appid, 'email', email);
-      
+
+      print('DEBUG LOGIN: ===== STARTING LOGIN PROCESS =====');
+      print('DEBUG LOGIN: Email input = $email');
+      print('DEBUG LOGIN: Password input = $password');
+
+      final resp = await svc.selectWhere(
+        'users',
+        AppConfig.appid,
+        'email',
+        email,
+      );
+
+      print('DEBUG LOGIN: Raw Response = $resp');
+      print('DEBUG LOGIN: Response Length = ${resp.length}');
+
+      // Validasi response
+      if (resp.isEmpty || resp == '[]') {
+        print('DEBUG LOGIN: Response kosong atau array kosong');
+        _showToast('Email tidak terdaftar');
+        setState(() => _loading = false);
+        return;
+      }
+
       // Parse response
       dynamic data;
       try {
         data = json.decode(resp);
+        print('DEBUG LOGIN: Parsed Data = $data');
+        print('DEBUG LOGIN: Data Type = ${data.runtimeType}');
       } catch (e) {
+        print('DEBUG LOGIN: JSON Parse Error = $e');
         _showToast('Format respons tidak valid dari server');
         setState(() => _loading = false);
         return;
@@ -73,29 +97,44 @@ class _LoginPageState extends State<LoginPage> {
 
       if (data is List && data.isNotEmpty) {
         final user = data[0];
+        print('DEBUG LOGIN: User Data = $user');
+
         final storedPassword = (user['password'] ?? '').toString();
         final role = (user['role'] ?? 'user').toString();
+        final userName = (user['name'] ?? '').toString();
+
+        print('DEBUG LOGIN: Stored Password = $storedPassword');
+        print('DEBUG LOGIN: Input Password = $password');
+        print('DEBUG LOGIN: Role = $role');
 
         if (storedPassword == password) {
-          // Login berhasil - simpan session
-          // TODO: Simpan ke SharedPreferences atau global state
-          _showSuccessToast('Login berhasil!');
+          // Login berhasil
+          _showSuccessToast('Login berhasil! Selamat datang $userName');
 
           if (!mounted) return;
-          
+
+          // Tambahkan delay agar toast terlihat
+          await Future.delayed(const Duration(milliseconds: 1500));
+          if (!mounted) return;
+
           // Navigasi berdasarkan role
           if (role.toLowerCase() == 'admin') {
+            print('DEBUG LOGIN: Navigating to admin dashboard');
             Navigator.pushReplacementNamed(context, '/admin/dashboard');
           } else {
+            print('DEBUG LOGIN: Navigating to user dashboard');
             Navigator.pushReplacementNamed(context, '/user/dashboard');
           }
         } else {
+          print('DEBUG LOGIN: Password mismatch');
           _showToast('Email atau password salah');
         }
       } else {
+        print('DEBUG LOGIN: Data is not List or empty');
         _showToast('Email tidak terdaftar');
       }
     } catch (e) {
+      print('DEBUG LOGIN: Exception = $e');
       _showToast('Terjadi kesalahan: $e');
     } finally {
       if (mounted) {
@@ -115,7 +154,7 @@ class _LoginPageState extends State<LoginPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SizedBox(height: 40),
-              
+
               // Header
               Center(
                 child: Container(
@@ -129,10 +168,14 @@ class _LoginPageState extends State<LoginPage> {
                 ),
               ),
               const SizedBox(height: 30),
-              
+
               const Text(
                 'Login Account',
-                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.blue),
+                style: TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.blue,
+                ),
               ),
               const Text(
                 'Selamat datang kembali',
@@ -141,7 +184,10 @@ class _LoginPageState extends State<LoginPage> {
               const SizedBox(height: 40),
 
               // Email
-              const Text('Email', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+              const Text(
+                'Email',
+                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+              ),
               const SizedBox(height: 8),
               TextField(
                 controller: _email,
@@ -151,7 +197,10 @@ class _LoginPageState extends State<LoginPage> {
                   hintStyle: TextStyle(color: Colors.grey.shade400),
                   filled: true,
                   fillColor: Colors.grey.shade50,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+                  contentPadding: const EdgeInsets.symmetric(
+                    vertical: 16,
+                    horizontal: 16,
+                  ),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                     borderSide: BorderSide.none,
@@ -165,7 +214,10 @@ class _LoginPageState extends State<LoginPage> {
               const SizedBox(height: 16),
 
               // Password
-              const Text('Password', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+              const Text(
+                'Password',
+                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+              ),
               const SizedBox(height: 8),
               TextField(
                 controller: _password,
@@ -175,7 +227,10 @@ class _LoginPageState extends State<LoginPage> {
                   hintStyle: TextStyle(color: Colors.grey.shade400),
                   filled: true,
                   fillColor: Colors.grey.shade50,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+                  contentPadding: const EdgeInsets.symmetric(
+                    vertical: 16,
+                    horizontal: 16,
+                  ),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                     borderSide: BorderSide.none,
@@ -189,7 +244,8 @@ class _LoginPageState extends State<LoginPage> {
                       _showPassword ? Icons.visibility : Icons.visibility_off,
                       color: Colors.grey,
                     ),
-                    onPressed: () => setState(() => _showPassword = !_showPassword),
+                    onPressed: () =>
+                        setState(() => _showPassword = !_showPassword),
                   ),
                 ),
               ),
@@ -202,12 +258,21 @@ class _LoginPageState extends State<LoginPage> {
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blue,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                   onPressed: _loading ? null : _login,
                   child: _loading
                       ? const CircularProgressIndicator(color: Colors.white)
-                      : const Text('Login', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+                      : const Text(
+                          'Login',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
                 ),
               ),
               const SizedBox(height: 16),
@@ -216,10 +281,19 @@ class _LoginPageState extends State<LoginPage> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Text('Belum punya akun? ', style: TextStyle(color: Colors.grey)),
+                  const Text(
+                    'Belum punya akun? ',
+                    style: TextStyle(color: Colors.grey),
+                  ),
                   GestureDetector(
                     onTap: () => Navigator.pushNamed(context, '/register'),
-                    child: const Text('Daftar', style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold)),
+                    child: const Text(
+                      'Daftar',
+                      style: TextStyle(
+                        color: Colors.blue,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -237,4 +311,3 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 }
-
