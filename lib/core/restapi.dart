@@ -1,11 +1,90 @@
 // ignore_for_file: non_constant_identifier_names
 
 import 'package:http/http.dart' as http;
-import 'config.dart'; // PENTING: Pastikan ini mengarah ke file config.dart Anda
+import 'config.dart'; // Pastikan path ini benar sesuai struktur folder Anda
 
 class DataService {
   
-  // --- FUNGSI INSERT (Menambah Data) ---
+  // =======================================================================
+  // 1. HELPER REQUESTS (DENGAN LOGGING LENGKAP)
+  // =======================================================================
+
+  /// Helper untuk POST (Insert)
+  Future<String> _postRequest(String endpoint, Map<String, String> body) async {
+    // Bersihkan URL
+    String uri = '${AppConfig.baseUrl}/$endpoint'.replaceAll(RegExp(r'\s+'), '');
+    
+    // Tambahkan kredensial wajib
+    body['token'] = AppConfig.token;
+    body['project'] = AppConfig.project;
+
+    try {
+      final response = await http.post(Uri.parse(uri), body: body);
+      return response.body;
+    } catch (e) {
+      return '{"error": "Exception", "message": "$e"}';
+    }
+  }
+
+  /// Helper untuk GET (Select)
+  Future<String> _getRequest(String uri) async {
+    try {
+      final String cleanUri = uri.replaceAll(RegExp(r'\s+'), '');
+      // print("DEBUG API GET: $cleanUri"); // Uncomment jika ingin lihat log GET
+      
+      final response = await http.get(Uri.parse(cleanUri));
+      return response.body;
+    } catch (e) {
+      print("API ERROR: $e");
+      return '[]';
+    }
+  }
+
+  /// Helper untuk PUT (Update) - FOKUS UTAMA PERBAIKAN
+  Future<bool> _putRequest(String endpoint, Map<String, String> body) async {
+    String uri = '${AppConfig.baseUrl}/$endpoint'.replaceAll(RegExp(r'\s+'), '');
+    
+    body['token'] = AppConfig.token;
+    body['project'] = AppConfig.project;
+
+    print("DEBUG API: Mengirim PUT ke -> $endpoint");
+
+    try {
+      // PERBAIKAN: Menambahkan Header
+      final response = await http.put(
+        Uri.parse(uri), 
+        body: body,
+        headers: {
+          "Accept": "application/json",
+          "Content-Type": "application/x-www-form-urlencoded"
+        }
+      );
+      
+      print("DEBUG API: Status -> ${response.statusCode}");
+      
+      if (response.statusCode == 200) {
+        return !response.body.toLowerCase().contains("error");
+      }
+      return false;
+    } catch (e) {
+      print("DEBUG API: Crash -> $e");
+      return false;
+    }
+  }
+  /// Helper untuk DELETE (Remove)
+  Future<bool> _deleteRequest(String uri) async {
+    try {
+      final String cleanUri = uri.replaceAll(RegExp(r'\s+'), '');
+      final response = await http.delete(Uri.parse(cleanUri));
+      return response.statusCode == 200;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // =======================================================================
+  // 2. FUNGSI INSERT (CREATE)
+  // =======================================================================
 
   Future insertDivisions(String appid, String name, String code) async {
     return _postRequest('insert', {
@@ -64,8 +143,9 @@ class DataService {
     });
   }
 
-  // --- FUNGSI SELECT (Mengambil Data) ---
-  // Kita hapus parameter 'token' dan 'project' karena sudah diambil dari AppConfig
+  // =======================================================================
+  // 3. FUNGSI SELECT (READ)
+  // =======================================================================
   
   Future selectAll(String collection, String appid) async {
     String uri = '${AppConfig.baseUrl}/select_all/token/${AppConfig.token}/project/${AppConfig.project}/collection/$collection/appid/$appid';
@@ -78,80 +158,36 @@ class DataService {
   }
 
   Future selectWhere(String collection, String appid, String where_field, String where_value) async {
-    String uri = '${AppConfig.baseUrl}/select_where/token/${AppConfig.token}/project/${AppConfig.project}/collection/$collection/appid/$appid/where_field/$where_field/where_value/$where_value';
+    // Encode value untuk menangani spasi atau karakter khusus
+    final f = Uri.encodeComponent(where_field);
+    final v = Uri.encodeComponent(where_value);
+    
+    String uri = '${AppConfig.baseUrl}/select_where/token/${AppConfig.token}/project/${AppConfig.project}/collection/$collection/appid/$appid/where_field/$f/where_value/$v';
     return _getRequest(uri);
   }
 
-  // --- FUNGSI UPDATE & DELETE (Edit & Hapus) ---
+  // =======================================================================
+  // 4. FUNGSI UPDATE & DELETE
+  // =======================================================================
 
   Future updateId(String update_field, String update_value, String collection, String appid, String id) async {
+    // Safety check: Jangan kirim request jika ID kosong
+    if (id.trim().isEmpty) {
+      print("DEBUG API: Update dibatalkan. ID Kosong.");
+      return false;
+    }
+
     return _putRequest('update_id', {
       'update_field': update_field,
       'update_value': update_value,
       'collection': collection,
       'appid': appid,
-      'id': id
+      'id': id.trim() // PENTING: Trim spasi
     });
   }
   
   Future removeId(String collection, String appid, String id) async {
      String uri = '${AppConfig.baseUrl}/remove_id/token/${AppConfig.token}/project/${AppConfig.project}/collection/$collection/appid/$appid/id/$id';
      return _deleteRequest(uri);
-  }
-
-  // --- HELPER FUNCTIONS (Supaya kodingan rapi) ---
-
-  Future<String> _postRequest(String endpoint, Map<String, String> body) async {
-    String uri = '${AppConfig.baseUrl}/$endpoint/';
-    
-    // Otomatis masukkan Token & Project ID ke setiap request
-    body['token'] = AppConfig.token;
-    body['project'] = AppConfig.project;
-
-    try {
-      final response = await http.post(Uri.parse(uri), body: body);
-      if (response.statusCode == 200) {
-        return response.body;
-      } else {
-        return '{"error": "HTTP ${response.statusCode}: ${response.body}"}';
-      }
-    } catch (e) {
-      return '{"error": "Exception: $e"}';
-    }
-  }
-
-  Future<String> _getRequest(String uri) async {
-    try {
-      final response = await http.get(Uri.parse(uri));
-      if (response.statusCode == 200) {
-        return response.body;
-      } else {
-        return '[]';
-      }
-    } catch (e) {
-      return '[]';
-    }
-  }
-
-  Future<bool> _putRequest(String endpoint, Map<String, String> body) async {
-    String uri = '${AppConfig.baseUrl}/$endpoint/';
-    body['token'] = AppConfig.token;
-    body['project'] = AppConfig.project;
-
-    try {
-      final response = await http.put(Uri.parse(uri), body: body);
-      return response.statusCode == 200;
-    } catch (e) {
-      return false;
-    }
-  }
-  
-  Future<bool> _deleteRequest(String uri) async {
-    try {
-      final response = await http.delete(Uri.parse(uri));
-      return response.statusCode == 200;
-    } catch (e) {
-      return false;
-    }
   }
 }
