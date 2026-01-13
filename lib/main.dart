@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:device_preview/device_preview.dart'; // Import plugin ini
-import 'views/auth/splash_screen.dart'; // Import splash screen
+import 'package:device_preview/device_preview.dart';
+import 'views/auth/splash_screen.dart';
+import 'views/auth/login_page.dart';
+import 'views/auth/register_page.dart';
+import 'views/admin/admin_dashboard.dart';
+import 'views/admin/input_revenue_page.dart';
+import 'views/admin/admin_setup_page.dart';
 
 void main() {
-  runApp(
-    // Bungkus MyApp dengan DevicePreview
-    DevicePreview(enabled: true, builder: (context) => const MyApp()),
-  );
+  runApp(DevicePreview(enabled: true, builder: (context) => const MyApp()));
 }
 
 class MyApp extends StatelessWidget {
@@ -21,7 +23,6 @@ class MyApp extends StatelessWidget {
       locale: DevicePreview.locale(context),
       builder: DevicePreview.appBuilder,
 
-      // ---------------------------------------
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
           seedColor: Colors.blue,
@@ -31,7 +32,15 @@ class MyApp extends StatelessWidget {
         scaffoldBackgroundColor: Colors.white,
       ),
 
-      home: const SplashScreen(), // Mulai dengan splash screen
+      home: const SplashScreen(),
+
+      routes: {
+        '/login': (context) => const LoginPage(),
+        '/register': (context) => const RegisterPage(),
+        '/admin/dashboard': (context) => const AdminDashboard(),
+        '/admin/input-revenue': (context) => const InputRevenuePage(),
+        '/admin/setup': (context) => const AdminSetupPage(),
+      },
     );
   }
 }

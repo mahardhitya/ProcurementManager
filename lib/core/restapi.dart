@@ -1,5 +1,6 @@
 // ignore_for_file: prefer_interpolation_to_compose_strings, non_constant_identifier_names
 
+import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 class DataService {
@@ -141,6 +142,57 @@ class DataService {
          }
       } catch (e) {
          // Print error here
+         return '[]';
+      }
+   }
+
+   // Method baru dengan rejection_reason untuk update status
+   Future insertProcurementRequestsWithReason(
+      String appid, 
+      String monthly_budget_id, 
+      String user_id, 
+      String item_name, 
+      String quantity, 
+      String price, 
+      String total_price, 
+      String status, 
+      String division_name, 
+      String date, 
+      String month_name, 
+      String imange_path,
+      String rejection_reason
+   ) async {
+      String uri = 'https://api.247go.app/v5/insert/';
+
+      try {
+         final response = await http.post(Uri.parse(uri), body: {
+            'token': '690e9167fcee2015d33ec941',
+            'project': 'procumon',
+            'collection': 'procurement_requests',
+            'appid': appid,
+            'monthly_budget_id': monthly_budget_id,
+            'user_id': user_id,
+            'item_name': item_name,
+            'quantity': quantity,
+            'price': price,
+            'total_price': total_price,
+            'status': status,
+            'division_name': division_name,
+            'date': date,
+            'month_name': month_name,
+            'imange_path': imange_path,
+            'rejection_reason': rejection_reason
+         });
+
+         print('insertProcurementRequestsWithReason response: ${response.body}');
+
+         if (response.statusCode == 200) {
+            return response.body;
+         } else {
+            return '[]';
+         }
+      } catch (e) {
+         print('insertProcurementRequestsWithReason error: $e');
          return '[]';
       }
    }
@@ -427,12 +479,27 @@ class DataService {
              'id': id
          });
 
+         print('updateId response status: ${response.statusCode}');
+         print('updateId response body: ${response.body}');
+
          if (response.statusCode == 200) {
-            return true;
+            // Check if API returned success
+            try {
+               final jsonResp = json.decode(response.body);
+               if (jsonResp['status'] == 1) {
+                  return true;
+               } else {
+                  print('updateId API error: ${jsonResp['message']}');
+                  return false;
+               }
+            } catch (e) {
+               return true; // Assume success if can't parse
+            }
          } else {
             return false;
          }
       } catch (e) {
+         print('updateId exception: $e');
          return false;
       }
    }

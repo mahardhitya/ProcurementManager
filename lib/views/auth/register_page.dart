@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:procurement/core/restapi.dart';
 
 class RegisterPage extends StatefulWidget {
@@ -49,12 +50,13 @@ class _RegisterPageState extends State<RegisterPage> {
 
     // Perhatikan urutan parameternya harus sama dengan di restapi.dart
     // (appid, name, email, password, role, division_id, ...)
+    // ROLE SELALU 'user' - Admin dibuat via Admin Setup, bukan registrasi
     String response = await dataService.insertUsers(
       '694be4983d9a020fbd727828', // App ID dari config.dart
       _nameController.text,
       _emailController.text,
       _passwordController.text,
-      'user', // Role default (ganti dari 'divisi')
+      'user', // Role default untuk semua user yang register
       _selectedDivision!, // Gunakan divisi yang dipilih
       _phoneController.text, // Nomor telepon dari input
     );
@@ -79,7 +81,10 @@ class _RegisterPageState extends State<RegisterPage> {
         // Validasi Hasil: Jika data bukan list kosong, berarti sukses
         try {
           if (data is List && data.isNotEmpty) {
-            // SUKSES BENARAN
+            // SUKSES BENARAN - Simpan divisi ke SharedPreferences
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.setString('division_name', _selectedDivision!);
+
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
                 content: Text("Registrasi Berhasil! Data Tersimpan."),
@@ -135,8 +140,37 @@ class _RegisterPageState extends State<RegisterPage> {
                 ),
               ),
               const Text(
-                "Sign up to get started!",
+                "Sign up as User to get started!",
                 style: TextStyle(color: Colors.grey, fontSize: 16),
+              ),
+              const SizedBox(height: 8),
+              // Info bahwa admin tidak register di sini
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.orange.shade200),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.info_outline,
+                      color: Colors.orange.shade700,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        "Admin accounts are created separately via Admin Setup",
+                        style: TextStyle(
+                          color: Colors.orange.shade700,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(height: 30),
 

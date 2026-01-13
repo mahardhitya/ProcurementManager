@@ -1,6 +1,9 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'add_request_page.dart';
-import 'dashboard_user.dart'; // Import untuk akses data dummy
+import '../../../core/restapi.dart';
+import '../../../core/config.dart';
 
 class MonthlyDetailPage extends StatefulWidget {
   final String monthName;
@@ -20,6 +23,8 @@ class MonthlyDetailPage extends StatefulWidget {
 
 class _MonthlyDetailPageState extends State<MonthlyDetailPage> {
   List<Map<String, dynamic>> _requests = [];
+  bool _isLoading = true;
+  final DataService _dataService = DataService();
 
   @override
   void initState() {
@@ -27,17 +32,123 @@ class _MonthlyDetailPageState extends State<MonthlyDetailPage> {
     _loadData();
   }
 
-  // Fungsi untuk me-load data dummy
-  void _loadData() {
-    setState(() {
-      // Ambil data dari DashboardUser dan filter berdasarkan divisi
-      final dummyData = DashboardUser.getDummyData();
-      final monthData = dummyData[widget.monthName] ?? [];
-      // Filter hanya data untuk divisi user
-      _requests = monthData
-          .where((item) => item['division'] == widget.userDivision)
-          .toList();
-    });
+  // Fungsi untuk me-load data dari API
+  Future<void> _loadData() async {
+    setState(() => _isLoading = true);
+
+    try {
+      // Ambil user_id dari SharedPreferences
+      final prefs = await SharedPreferences.getInstance();
+      String userId = prefs.getString('user_id') ?? '';
+      String userDivision =
+          prefs.getString('division_name') ?? widget.userDivision;
+
+      print('========== LOAD DATA DEBUG ==========');
+      print('User ID: $userId');
+      print('User Division from prefs: $userDivision');
+      print('Month Name: ${widget.monthName}');
+      print('Widget userDivision: ${widget.userDivision}');
+
+      // Ambil semua procurement requests dari API
+      String response = await _dataService.selectAll(
+        AppConfig.token,
+        'procumon', // Gunakan 'procumon' sesuai dengan insert
+        'procurement_requests',
+        AppConfig.appid,
+      );
+
+      print('API Response length: ${response.length}');
+      print('API Response: $response');
+
+      var jsonResponse = json.decode(response);
+
+      // Handle response format: {"data": [...]} atau langsung [...]
+      List requestData = [];
+      if (jsonResponse is Map && jsonResponse['data'] != null) {
+        requestData = jsonResponse['data'] as List;
+        print('Response is Map with data field');
+      } else if (jsonResponse is List) {
+        requestData = jsonResponse;
+        print('Response is direct List');
+      } else {
+        print('Response format unknown: ${jsonResponse.runtimeType}');
+      }
+
+      print('Total requests from API: ${requestData.length}');
+
+      // Debug: Print semua item dari API
+      for (var item in requestData) {
+        print(
+          'Item: ${item['item_name']}, Division: ${item['division_name']}, Month: ${item['month_name']}, Status: ${item['status']}',
+        );
+      }
+
+      // Collect processed item keys (Approved/Rejected) to exclude their Pending versions
+      Set<String> processedItemKeys = {};
+      for (var item in requestData) {
+        String status = item['status']?.toLowerCase() ?? '';
+        if (status == 'approved' || status == 'rejected') {
+          // Create unique key from item_name + division + month + date
+          String key = '${item['item_name']}|${item['division_name']}|${item['month_name']}|${item['date']}';
+          processedItemKeys.add(key);
+          print('Processed item key: $key');
+        }
+      }
+
+      // Filter berdasarkan divisi user dan bulan
+      List<Map<String, dynamic>> filteredRequests = [];
+      for (var item in requestData) {
+        String itemDivision = item['division_name'] ?? '';
+        String itemMonth = item['month_name'] ?? '';
+        String itemStatus = item['status'] ?? 'Pending';
+        String itemId = item['id'] ?? item['_id'] ?? '';
+
+        print(
+          'Checking: Division=$itemDivision vs $userDivision, Month=$itemMonth vs ${widget.monthName}',
+        );
+
+        // Skip items that are deleted or processed
+        bool isDeleted = itemStatus.toLowerCase() == 'deleted' || 
+                         itemStatus.toLowerCase() == 'processed';
+        
+        // Skip pending items that have a processed version (Approved/Rejected exists)
+        String itemKey = '${item['item_name']}|$itemDivision|$itemMonth|${item['date']}';
+        bool isPendingWithProcessedVersion = 
+            itemStatus.toLowerCase() == 'pending' && processedItemKeys.contains(itemKey);
+
+        // Filter berdasarkan divisi dan bulan
+        if (itemDivision == userDivision &&
+            itemMonth == widget.monthName &&
+            !isDeleted &&
+            !isPendingWithProcessedVersion) {
+          print('MATCH FOUND: ${item['item_name']} (status: $itemStatus)');
+          
+          filteredRequests.add({
+            'id': itemId,
+            'item_name': item['item_name'] ?? 'Unknown',
+            'quantity': int.tryParse(item['quantity']?.toString() ?? '0') ?? 0,
+            'price': int.tryParse(item['price']?.toString() ?? '0') ?? 0,
+            'total_price':
+                int.tryParse(item['total_price']?.toString() ?? '0') ?? 0,
+            'status': item['status'] ?? 'Pending',
+            'date': item['date'] ?? '',
+            'division': itemDivision,
+            'rejection_reason': item['rejection_reason'] ?? '',
+          });
+        }
+      }
+
+      print('Filtered requests count: ${filteredRequests.length}');
+      print('========== END DEBUG ==========');
+
+      setState(() {
+        _requests = filteredRequests;
+        _isLoading = false;
+      });
+    } catch (e) {
+      print('Error loading data: $e');
+      setState(() => _isLoading = false);
+    }
   }
 
   @override
@@ -57,59 +168,75 @@ class _MonthlyDetailPageState extends State<MonthlyDetailPage> {
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
         elevation: 1,
-      ),
-      body: Column(
-        children: [
-          // Header Summary
-          Container(
-            margin: const EdgeInsets.all(16),
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.grey.withOpacity(0.1),
-                  blurRadius: 10,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _buildSummaryCard(
-                  "Total Item",
-                  "$totalItems Pcs",
-                  Icons.shopping_cart,
-                  Colors.orange,
-                ),
-                Container(width: 1, height: 40, color: Colors.grey.shade200),
-                _buildSummaryCard(
-                  "Total Biaya",
-                  "Rp ${_formatNumber(totalBudget)}",
-                  Icons.attach_money,
-                  Colors.green,
-                ),
-              ],
-            ),
-          ),
-
-          // List
-          Expanded(
-            child: _requests.isEmpty
-                ? _buildEmptyState()
-                : ListView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    itemCount: _requests.length,
-                    itemBuilder: (context, index) {
-                      final item = _requests[index];
-                      return _buildRequestCard(item);
-                    },
-                  ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _loadData,
+            tooltip: 'Refresh',
           ),
         ],
       ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : RefreshIndicator(
+              onRefresh: _loadData,
+              child: Column(
+                children: [
+                  // Header Summary
+                  Container(
+                    margin: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.grey.withOpacity(0.1),
+                          blurRadius: 10,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: [
+                        _buildSummaryCard(
+                          "Total Item",
+                          "$totalItems Pcs",
+                          Icons.shopping_cart,
+                          Colors.orange,
+                        ),
+                        Container(
+                          width: 1,
+                          height: 40,
+                          color: Colors.grey.shade200,
+                        ),
+                        _buildSummaryCard(
+                          "Total Biaya",
+                          "Rp ${_formatNumber(totalBudget)}",
+                          Icons.attach_money,
+                          Colors.green,
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // List
+                  Expanded(
+                    child: _requests.isEmpty
+                        ? _buildEmptyState()
+                        : ListView.builder(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            itemCount: _requests.length,
+                            itemBuilder: (context, index) {
+                              final item = _requests[index];
+                              return _buildRequestCard(item);
+                            },
+                          ),
+                  ),
+                ],
+              ),
+            ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () async {
           // Navigasi ke Form Add, tunggu hasil baliknya
@@ -349,48 +476,56 @@ class _MonthlyDetailPageState extends State<MonthlyDetailPage> {
                 ),
               ],
             ),
+            // Tampilkan alasan penolakan jika status Rejected
+            if (item['status'] == 'Rejected' &&
+                item['rejection_reason'] != null &&
+                item['rejection_reason'].toString().isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.red.shade200),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.info_outline,
+                          size: 16,
+                          color: Colors.red.shade700,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Alasan Penolakan:',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.red.shade700,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      item['rejection_reason'].toString(),
+                      style: TextStyle(
+                        color: Colors.red.shade900,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ],
         ),
       ),
     );
-  }
-
-  // Fungsi untuk kurangi quantity
-  void _decreaseQuantity(Map<String, dynamic> item) {
-    int currentQty = item['quantity'] as int;
-    if (currentQty > 1) {
-      // Update quantity
-      bool success = DashboardUser.updateRequestQuantity(
-        widget.monthName,
-        item['item_name'],
-        currentQty - 1,
-      );
-      if (success) {
-        _loadData();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Quantity berhasil dikurangi")),
-        );
-      }
-    } else {
-      // Jika quantity 1, tanya apakah mau hapus
-      _showDeleteConfirmation(item);
-    }
-  }
-
-  // Fungsi untuk tambah quantity
-  void _increaseQuantity(Map<String, dynamic> item) {
-    int currentQty = item['quantity'] as int;
-    bool success = DashboardUser.updateRequestQuantity(
-      widget.monthName,
-      item['item_name'],
-      currentQty + 1,
-    );
-    if (success) {
-      _loadData();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Quantity berhasil ditambah")),
-      );
-    }
   }
 
   // Fungsi untuk hapus item
@@ -398,7 +533,7 @@ class _MonthlyDetailPageState extends State<MonthlyDetailPage> {
     _showDeleteConfirmation(item);
   }
 
-  // Fungsi untuk edit item
+  // Fungsi untuk edit item via API
   void _showEditDialog(Map<String, dynamic> item) {
     final TextEditingController nameController = TextEditingController(
       text: item['item_name'],
@@ -439,7 +574,7 @@ class _MonthlyDetailPageState extends State<MonthlyDetailPage> {
             child: const Text("Batal"),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               final newName = nameController.text.trim();
               final newQuantity = int.tryParse(quantityController.text) ?? 0;
 
@@ -459,26 +594,61 @@ class _MonthlyDetailPageState extends State<MonthlyDetailPage> {
                 return;
               }
 
-              bool success = DashboardUser.updateRequestItem(
-                widget.monthName,
-                item['item_name'],
-                newName,
-                newQuantity,
-              );
-
               Navigator.pop(context);
 
-              if (success) {
+              try {
+                // Update item_name via API
+                await _dataService.updateId(
+                  'item_name',
+                  newName,
+                  AppConfig.token,
+                  'procumon',
+                  'procurement_requests',
+                  AppConfig.appid,
+                  item['id'],
+                );
+
+                // Update quantity via API
+                await _dataService.updateId(
+                  'quantity',
+                  newQuantity.toString(),
+                  AppConfig.token,
+                  'procumon',
+                  'procurement_requests',
+                  AppConfig.appid,
+                  item['id'],
+                );
+
+                // Update total_price
+                int newTotalPrice = newQuantity * (item['price'] as int);
+                await _dataService.updateId(
+                  'total_price',
+                  newTotalPrice.toString(),
+                  AppConfig.token,
+                  'procumon',
+                  'procurement_requests',
+                  AppConfig.appid,
+                  item['id'],
+                );
+
                 _loadData();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text("Pengajuan berhasil diperbarui"),
-                  ),
-                );
-              } else {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text("Gagal memperbarui pengajuan")),
-                );
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text("Pengajuan berhasil diperbarui"),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text("Gagal memperbarui: $e"),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
               }
             },
             child: const Text("Simpan"),
@@ -488,7 +658,7 @@ class _MonthlyDetailPageState extends State<MonthlyDetailPage> {
     );
   }
 
-  // Konfirmasi hapus
+  // Konfirmasi hapus via API
   void _showDeleteConfirmation(Map<String, dynamic> item) {
     showDialog(
       context: context,
@@ -503,20 +673,39 @@ class _MonthlyDetailPageState extends State<MonthlyDetailPage> {
             child: const Text("Batal"),
           ),
           TextButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(context);
-              bool success = DashboardUser.deleteRequest(
-                widget.monthName,
-                item['item_name'],
-              );
-              if (success) {
-                _loadData();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text("Pengajuan berhasil dihapus"),
-                    backgroundColor: Colors.green,
-                  ),
+
+              try {
+                // Delete via API - update status ke 'Deleted'
+                await _dataService.updateId(
+                  'status',
+                  'Deleted',
+                  AppConfig.token,
+                  'procumon',
+                  'procurement_requests',
+                  AppConfig.appid,
+                  item['id'],
                 );
+
+                _loadData();
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text("Pengajuan berhasil dihapus"),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text("Gagal menghapus: $e"),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
               }
             },
             child: const Text("Hapus", style: TextStyle(color: Colors.red)),

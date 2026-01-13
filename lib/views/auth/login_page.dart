@@ -1,7 +1,10 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart'; // Untuk session user
+import 'package:procurement/core/restapi.dart';
 import 'register_page.dart'; // Import halaman register agar bisa navigasi
-import 'user_division/dashboard_user.dart'; // Import dashboard
+import 'user_division/dashboard_user.dart'; // Import dashboard user
+import '../admin/admin_dashboard.dart'; // Import dashboard admin
 import 'widgets/success_dialog.dart'; // Import success dialog
 
 class LoginPage extends StatefulWidget {
@@ -19,19 +22,13 @@ class _LoginPageState extends State<LoginPage> {
   bool _isObscure = true; // Untuk fitur Show/Hide Password
   bool _isLoading = false;
 
-  // Daftar divisi yang tersedia
-  final List<String> _divisions = ['IT', 'Marketing', 'Operations'];
-  String? _selectedDivision;
-
   // Fungsi saat tombol Login ditekan
   void _handleLogin() async {
     // Validasi input kosong (US-003)
-    if (_emailController.text.isEmpty ||
-        _passwordController.text.isEmpty ||
-        _selectedDivision == null) {
+    if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text("Email, Password, dan Divisi tidak boleh kosong"),
+          content: Text("Email dan Password tidak boleh kosong"),
           backgroundColor: Colors.red,
         ),
       );
@@ -42,49 +39,180 @@ class _LoginPageState extends State<LoginPage> {
       _isLoading = true;
     });
 
-    // Simulasi request ke API (Nanti diganti dengan logic RestAPI)
-    await Future.delayed(const Duration(seconds: 2));
+    try {
+      // BYPASS LOGIN UNTUK ADMIN (Hard-coded untuk testing)
+      if (_emailController.text == 'admin@admin.com' &&
+          _passwordController.text == 'admin') {
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
 
-    if (mounted) {
-      setState(() {
-        _isLoading = false;
-      });
+          // Simpan data admin ke SharedPreferences
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('user_id', 'admin-001');
+          await prefs.setString('user_email', 'admin@admin.com');
+          await prefs.setString('user_name', 'Admin');
+          await prefs.setString('user_role', 'admin');
+          await prefs.setString('division_name', 'MANAGEMENT');
 
-      // Simpan data user ke SharedPreferences
-      final prefs = await SharedPreferences.getInstance();
+          print('Admin logged in via bypass'); // Debug log
 
-      // Generate user_id dummy dari email (nanti diganti dengan user_id dari API)
-      String userId =
-          'USER-${_emailController.text.split('@')[0]}-${_selectedDivision}';
-      await prefs.setString('user_id', userId);
-      await prefs.setString('user_email', _emailController.text);
-      await prefs.setString('division_name', _selectedDivision!);
+          // Tampilkan success dialog
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            barrierColor: Colors.black.withOpacity(0.5),
+            builder: (context) => SuccessDialog(
+              title: 'Login Berhasil!',
+              message: 'Selamat datang, Admin',
+              onComplete: () {
+                Navigator.of(context).pop(); // Tutup dialog
+                // Admin langsung ke dashboard admin
+                Navigator.pushReplacementNamed(context, '/admin/dashboard');
+              },
+            ),
+          );
+          return; // Exit function
+        }
+      }
 
-      print(
-        'User logged in: $userId, Division: $_selectedDivision',
-      ); // Debug log
+      // Cari user berdasarkan email dari database
+      DataService dataService = DataService();
 
-      // Tampilkan success dialog yang menarik
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        barrierColor: Colors.black.withOpacity(0.5),
-        builder: (context) => SuccessDialog(
-          title: 'Login Berhasil!',
-          message: 'Selamat datang di ProcuMon',
-          onComplete: () {
-            Navigator.of(context).pop(); // Tutup dialog
-            // Navigasi ke Dashboard dengan pushReplacement
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(
-                builder: (context) =>
-                    DashboardUser(userDivision: _selectedDivision!),
+      print('Attempting login with email: ${_emailController.text}'); // Debug
+
+      // Debug: Coba ambil semua users dulu untuk memastikan koneksi benar
+      String allUsersResponse = await dataService.selectAll(
+        '690e9167fcee2015d33ec941', // token
+        'procumon', // project
+        'users', // collection
+        '694be4983d9a020fbd727828', // appid
+      );
+      print('All Users Response: $allUsersResponse'); // Debug
+
+      String response = await dataService.selectWhere(
+        '690e9167fcee2015d33ec941', // token
+        'procumon', // project
+        'users', // collection
+        '694be4983d9a020fbd727828', // appid (FIXED: sama dengan registrasi)
+        'email', // field
+        _emailController.text, // value
+      );
+
+      print('Login Response: $response'); // Debug
+      print('Response length: ${response.length}'); // Debug
+
+      var jsonResponse = json.decode(response);
+      print('Decoded data type: ${jsonResponse.runtimeType}'); // Debug
+      print('Decoded data: $jsonResponse'); // Debug
+
+      // Response API format: {"limit":0,"offset":0,"total":1,"data":[...]}
+      // Jadi perlu ambil jsonResponse['data'] yang merupakan List users
+      List<dynamic> users = [];
+      
+      if (jsonResponse is Map && jsonResponse['data'] != null) {
+        users = jsonResponse['data'] as List<dynamic>;
+      } else if (jsonResponse is List) {
+        users = jsonResponse;
+      }
+
+      print('Users found: ${users.length}'); // Debug
+
+      if (users.isNotEmpty) {
+        var user = users[0];
+        print('Found user: ${user['email']}, Role: ${user['role']}'); // Debug
+
+        String storedPassword = user['password'] ?? '';
+        String userRole = user['role'] ?? 'user';
+        String userName = user['name'] ?? 'User';
+        String userDivision = user['division_id'] ?? 'IT';
+
+        // Validasi password
+        if (storedPassword == _passwordController.text) {
+          if (mounted) {
+            setState(() {
+              _isLoading = false;
+            });
+
+            // Simpan data user ke SharedPreferences
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.setString('user_id', user['id'] ?? user['_id'] ?? '');
+            await prefs.setString('user_email', _emailController.text);
+            await prefs.setString('user_name', userName);
+            await prefs.setString('user_role', userRole);
+            await prefs.setString('division_name', userDivision);
+
+            print('User logged in: $userName, Role: $userRole'); // Debug log
+
+            // Tampilkan success dialog
+            showDialog(
+              context: context,
+              barrierDismissible: false,
+              barrierColor: Colors.black.withOpacity(0.5),
+              builder: (context) => SuccessDialog(
+                title: 'Login Berhasil!',
+                message: 'Selamat datang, $userName',
+                onComplete: () {
+                  Navigator.of(context).pop(); // Tutup dialog
+
+                  // Routing berdasarkan role (case-insensitive)
+                  if (userRole.toLowerCase() == 'admin') {
+                    // Admin ke dashboard admin
+                    Navigator.pushReplacementNamed(context, '/admin/dashboard');
+                  } else {
+                    // User biasa ke dashboard user
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const DashboardUser(),
+                      ),
+                    );
+                  }
+                },
               ),
             );
-          },
-        ),
-      );
+          }
+        } else {
+          // Password salah
+          if (mounted) {
+            setState(() {
+              _isLoading = false;
+            });
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text("Password salah"),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+        }
+      } else {
+        // Email tidak ditemukan
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("Email tidak terdaftar"),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Error login: ${e.toString()}"),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -163,24 +291,6 @@ class _LoginPageState extends State<LoginPage> {
                 ),
               ),
               const SizedBox(height: 16),
-
-              // --- DROPDOWN DIVISI ---
-              _buildLabel("Division"),
-              DropdownButtonFormField<String>(
-                value: _selectedDivision,
-                decoration: _inputDecoration("Select your division"),
-                items: _divisions.map((division) {
-                  return DropdownMenuItem(
-                    value: division,
-                    child: Text(division),
-                  );
-                }).toList(),
-                onChanged: (value) {
-                  setState(() {
-                    _selectedDivision = value;
-                  });
-                },
-              ),
 
               // Lupa Password
               Align(

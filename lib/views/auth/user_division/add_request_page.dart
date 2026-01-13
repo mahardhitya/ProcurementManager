@@ -120,6 +120,12 @@ class _AddRequestPageState extends State<AddRequestPage> {
       // Panggil API untuk insert procurement request
       final dataService = DataService();
 
+      print('========== INSERT DEBUG ==========');
+      print('AppID: ${AppConfig.appid}');
+      print('Month Name: ${widget.monthName}');
+      print('User ID: $userId');
+      print('Division Name: $divisionName');
+
       String response = await dataService.insertProcurementRequests(
         AppConfig.appid, // App ID dari config
         widget.monthName, // monthly_budget_id (simpan nama bulan)
@@ -138,14 +144,25 @@ class _AddRequestPageState extends State<AddRequestPage> {
         _pickedImage!.path, // image_path
       );
 
+      print('Insert Response: $response');
+      print('========== END INSERT DEBUG ==========');
+
       // Parsing response
       var decodedData = jsonDecode(response);
+
+      // Handle response format: {"data": [...]} atau langsung [...]
+      List insertedData = [];
+      if (decodedData is Map && decodedData['data'] != null) {
+        insertedData = decodedData['data'] as List;
+      } else if (decodedData is List) {
+        insertedData = decodedData;
+      }
 
       if (mounted) {
         setState(() => _isLoading = false);
 
         // Validasi response dari GoCloud (Biasanya return List/Map yg berisi ID)
-        if (decodedData is List && decodedData.isNotEmpty) {
+        if (insertedData.isNotEmpty) {
           // Juga tambahkan ke dummy data untuk tampilan langsung
           final newRequest = {
             'item_name': _itemController.text,
