@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'monthly_detail_page.dart';
 import 'profile_page.dart';
 import 'notification_page.dart';
 
 class DashboardUser extends StatefulWidget {
-  final String userDivision;
-
-  const DashboardUser({super.key, required this.userDivision});
+  const DashboardUser({super.key});
 
   // Data dummy untuk semua bulan (dipindah ke class utama)
   static final Map<String, List<Map<String, dynamic>>> _dummyData = {
@@ -497,6 +496,9 @@ class DashboardUser extends StatefulWidget {
 }
 
 class _DashboardUserState extends State<DashboardUser> {
+  String? userDivision; // Akan diisi dari SharedPreferences
+  bool _isLoading = true;
+
   final List<String> months = const [
     "Januari",
     "Februari",
@@ -512,6 +514,22 @@ class _DashboardUserState extends State<DashboardUser> {
     "Desember",
   ];
 
+  @override
+  void initState() {
+    super.initState();
+    _loadUserDivision();
+  }
+
+  // Load divisi user dari SharedPreferences
+  Future<void> _loadUserDivision() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      userDivision =
+          prefs.getString('division_name') ?? 'IT'; // Default IT jika tidak ada
+      _isLoading = false;
+    });
+  }
+
   // Hitung total item dan total biaya dari semua bulan untuk divisi user
   Map<String, dynamic> _calculateYearlyTotal() {
     int totalItems = 0;
@@ -520,7 +538,7 @@ class _DashboardUserState extends State<DashboardUser> {
     DashboardUser._dummyData.forEach((month, items) {
       for (var item in items) {
         // Filter hanya untuk divisi user
-        if (item['division'] == widget.userDivision) {
+        if (item['division'] == userDivision) {
           totalItems += item['quantity'] as int;
           totalBudget += (item['quantity'] as int) * (item['price'] as int);
         }
@@ -539,6 +557,11 @@ class _DashboardUserState extends State<DashboardUser> {
 
   @override
   Widget build(BuildContext context) {
+    // Tampilkan loading saat masih mengambil data divisi
+    if (_isLoading || userDivision == null) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
     final yearlyTotal = _calculateYearlyTotal();
     final totalItems = yearlyTotal['totalItems'] as int;
     final totalBudget = yearlyTotal['totalBudget'] as int;
@@ -590,7 +613,7 @@ class _DashboardUserState extends State<DashboardUser> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              "Halo, Divisi ${widget.userDivision}",
+                              "Halo, Divisi $userDivision",
                               style: const TextStyle(
                                 color: Colors.white70,
                                 fontSize: 16,
@@ -619,7 +642,7 @@ class _DashboardUserState extends State<DashboardUser> {
                                       context,
                                       MaterialPageRoute(
                                         builder: (context) => NotificationPage(
-                                          userDivision: widget.userDivision,
+                                          userDivision: userDivision!,
                                         ),
                                       ),
                                     );
@@ -654,7 +677,7 @@ class _DashboardUserState extends State<DashboardUser> {
                                     child: Center(
                                       child: Text(
                                         DashboardUser.getUnreadNotificationCount(
-                                          widget.userDivision,
+                                          userDivision,
                                         ).toString(),
                                         style: const TextStyle(
                                           color: Colors.white,
@@ -675,7 +698,7 @@ class _DashboardUserState extends State<DashboardUser> {
                                   context,
                                   MaterialPageRoute(
                                     builder: (context) => ProfilePage(
-                                      userDivision: widget.userDivision,
+                                      userDivision: userDivision!,
                                     ),
                                   ),
                                 );
@@ -804,7 +827,7 @@ class _DashboardUserState extends State<DashboardUser> {
                 builder: (context) => MonthlyDetailPage(
                   monthName: monthName,
                   monthIndex: index,
-                  userDivision: widget.userDivision,
+                  userDivision: userDivision!,
                 ),
               ),
             );
