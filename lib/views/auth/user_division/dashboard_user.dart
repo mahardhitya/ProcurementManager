@@ -555,6 +555,52 @@ class _DashboardUserState extends State<DashboardUser> {
     });
   }
 
+  // Method untuk menampilkan dialog logout
+  void _showLogoutDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.logout, color: Colors.red),
+            SizedBox(width: 8),
+            Text('Logout'),
+          ],
+        ),
+        content: const Text('Apakah Anda yakin ingin keluar?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              // Clear SharedPreferences
+              final prefs = await SharedPreferences.getInstance();
+              await prefs.clear();
+              
+              if (mounted) {
+                Navigator.pop(context); // Close dialog
+                // Navigate to login page and clear all routes
+                Navigator.pushNamedAndRemoveUntil(
+                  context,
+                  '/login',
+                  (route) => false,
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Logout'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     // Tampilkan loading saat masih mengambil data divisi
@@ -706,6 +752,23 @@ class _DashboardUserState extends State<DashboardUser> {
                               child: const CircleAvatar(
                                 backgroundColor: Colors.white24,
                                 child: Icon(Icons.person, color: Colors.white),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            // Icon Logout
+                            GestureDetector(
+                              onTap: () => _showLogoutDialog(),
+                              child: Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.2),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(
+                                  Icons.logout,
+                                  color: Colors.white,
+                                  size: 24,
+                                ),
                               ),
                             ),
                           ],
