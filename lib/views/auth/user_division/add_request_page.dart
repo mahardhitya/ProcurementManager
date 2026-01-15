@@ -4,7 +4,6 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'dart:convert'; // Untuk jsonDecode
-import 'dashboard_user.dart'; // Import untuk update dummy data
 import 'package:intl/intl.dart'; // Untuk format tanggal
 import 'package:shared_preferences/shared_preferences.dart'; // Untuk session user
 import '../../../core/restapi.dart'; // Import DataService
@@ -163,17 +162,6 @@ class _AddRequestPageState extends State<AddRequestPage> {
 
         // Validasi response dari GoCloud (Biasanya return List/Map yg berisi ID)
         if (insertedData.isNotEmpty) {
-          // Juga tambahkan ke dummy data untuk tampilan langsung
-          final newRequest = {
-            'item_name': _itemController.text,
-            'quantity': _selectedQuantity,
-            'price': int.parse(_priceController.text.replaceAll('.', '')),
-            'status': 'Pending',
-            'date': DateFormat('yyyy-MM-dd').format(DateTime.now()),
-            'division': divisionName,
-          };
-          DashboardUser.addNewRequest(widget.monthName, newRequest);
-
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text("Pengajuan berhasil dikirim!"),
