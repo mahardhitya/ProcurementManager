@@ -1,503 +1,28 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'monthly_detail_page.dart';
 import 'profile_page.dart';
 import 'notification_page.dart';
+import 'add_request_page.dart';
+import '../../../core/restapi.dart';
+import '../../../core/config.dart';
 
 class DashboardUser extends StatefulWidget {
   const DashboardUser({super.key});
-
-  // Data dummy untuk semua bulan (dipindah ke class utama)
-  static final Map<String, List<Map<String, dynamic>>> _dummyData = {
-    "Januari": [
-      {
-        "item_name": "Laptop HP",
-        "quantity": 5,
-        "price": 8000000,
-        "status": "Approved",
-        "date": "2025-01-05",
-        "division": "IT",
-      },
-      {
-        "item_name": "Mouse Wireless",
-        "quantity": 10,
-        "price": 150000,
-        "status": "Approved",
-        "date": "2025-01-10",
-        "division": "IT",
-      },
-      {
-        "item_name": "Banner Promosi",
-        "quantity": 5,
-        "price": 500000,
-        "status": "Approved",
-        "date": "2025-01-12",
-        "division": "Marketing",
-      },
-      {
-        "item_name": "Brosur A4",
-        "quantity": 1000,
-        "price": 150000,
-        "status": "Pending",
-        "date": "2025-01-18",
-        "division": "Marketing",
-      },
-    ],
-    "Februari": [
-      {
-        "item_name": "Monitor 24 inch",
-        "quantity": 6,
-        "price": 2500000,
-        "status": "Approved",
-        "date": "2025-02-03",
-        "division": "IT",
-      },
-      {
-        "item_name": "Headset Gaming",
-        "quantity": 3,
-        "price": 800000,
-        "status": "Approved",
-        "date": "2025-02-20",
-        "division": "Marketing",
-      },
-      {
-        "item_name": "Spanduk Event",
-        "quantity": 8,
-        "price": 350000,
-        "status": "Pending",
-        "date": "2025-02-25",
-        "division": "Marketing",
-      },
-    ],
-    "Maret": [
-      {
-        "item_name": "SSD 1TB",
-        "quantity": 10,
-        "price": 1500000,
-        "status": "Approved",
-        "date": "2025-03-05",
-        "division": "IT",
-      },
-      {
-        "item_name": "RAM 16GB",
-        "quantity": 8,
-        "price": 900000,
-        "status": "Approved",
-        "date": "2025-03-12",
-        "division": "IT",
-      },
-      {
-        "item_name": "Katalog Produk",
-        "quantity": 500,
-        "price": 200000,
-        "status": "Approved",
-        "date": "2025-03-15",
-        "division": "Marketing",
-      },
-      {
-        "item_name": "Roll Up Banner",
-        "quantity": 4,
-        "price": 450000,
-        "status": "Pending",
-        "date": "2025-03-22",
-        "division": "Marketing",
-      },
-    ],
-    "April": [
-      {
-        "item_name": "Printer Laser",
-        "quantity": 2,
-        "price": 3500000,
-        "status": "Approved",
-        "date": "2025-04-08",
-        "division": "Operations",
-      },
-      {
-        "item_name": "UPS 1000VA",
-        "quantity": 5,
-        "price": 1800000,
-        "status": "Pending",
-        "date": "2025-04-22",
-        "division": "IT",
-      },
-      {
-        "item_name": "X-Banner",
-        "quantity": 10,
-        "price": 250000,
-        "status": "Approved",
-        "date": "2025-04-10",
-        "division": "Marketing",
-      },
-      {
-        "item_name": "Stiker Brand",
-        "quantity": 2000,
-        "price": 300000,
-        "status": "Pending",
-        "date": "2025-04-18",
-        "division": "Marketing",
-      },
-    ],
-    "Mei": [
-      {
-        "item_name": "Proyektor",
-        "quantity": 1,
-        "price": 5000000,
-        "status": "Pending",
-        "date": "2025-05-05",
-        "division": "Marketing",
-      },
-      {
-        "item_name": "Poster A3",
-        "quantity": 300,
-        "price": 250000,
-        "status": "Approved",
-        "date": "2025-05-15",
-        "division": "Marketing",
-      },
-      {
-        "item_name": "Switch 24 Port",
-        "quantity": 2,
-        "price": 4500000,
-        "status": "Approved",
-        "date": "2025-05-20",
-        "division": "IT",
-      },
-    ],
-    "Juni": [
-      {
-        "item_name": "NAS Storage 4TB",
-        "quantity": 1,
-        "price": 8000000,
-        "status": "Approved",
-        "date": "2025-06-03",
-        "division": "IT",
-      },
-      {
-        "item_name": "Cooling Pad",
-        "quantity": 12,
-        "price": 250000,
-        "status": "Approved",
-        "date": "2025-06-10",
-        "division": "Operations",
-      },
-      {
-        "item_name": "Kartu Nama",
-        "quantity": 500,
-        "price": 200000,
-        "status": "Approved",
-        "date": "2025-06-14",
-        "division": "Marketing",
-      },
-      {
-        "item_name": "Goodie Bag Event",
-        "quantity": 100,
-        "price": 150000,
-        "status": "Pending",
-        "date": "2025-06-22",
-        "division": "Marketing",
-      },
-    ],
-    "Juli": [
-      {
-        "item_name": "External HDD 2TB",
-        "quantity": 6,
-        "price": 1100000,
-        "status": "Approved",
-        "date": "2025-07-05",
-        "division": "IT",
-      },
-      {
-        "item_name": "Power Bank",
-        "quantity": 10,
-        "price": 300000,
-        "status": "Approved",
-        "date": "2025-07-20",
-        "division": "Marketing",
-      },
-      {
-        "item_name": "Backdrop Event",
-        "quantity": 3,
-        "price": 800000,
-        "status": "Pending",
-        "date": "2025-07-25",
-        "division": "Marketing",
-      },
-    ],
-    "Agustus": [
-      {
-        "item_name": "Tablet Android",
-        "quantity": 4,
-        "price": 3500000,
-        "status": "Pending",
-        "date": "2025-08-05",
-        "division": "Marketing",
-      },
-      {
-        "item_name": "Smartwatch",
-        "quantity": 3,
-        "price": 2000000,
-        "status": "Approved",
-        "date": "2025-08-15",
-        "division": "Operations",
-      },
-      {
-        "item_name": "LED Display",
-        "quantity": 2,
-        "price": 4000000,
-        "status": "Approved",
-        "date": "2025-08-18",
-        "division": "Marketing",
-      },
-      {
-        "item_name": "Charger Fast Charging",
-        "quantity": 15,
-        "price": 150000,
-        "status": "Approved",
-        "date": "2025-08-22",
-        "division": "IT",
-      },
-    ],
-    "September": [
-      {
-        "item_name": "Motherboard",
-        "quantity": 3,
-        "price": 2500000,
-        "status": "Approved",
-        "date": "2025-09-05",
-        "division": "IT",
-      },
-      {
-        "item_name": "CPU Intel i7",
-        "quantity": 3,
-        "price": 5000000,
-        "status": "Approved",
-        "date": "2025-09-10",
-        "division": "IT",
-      },
-      {
-        "item_name": "Neon Box",
-        "quantity": 2,
-        "price": 3500000,
-        "status": "Approved",
-        "date": "2025-09-12",
-        "division": "Marketing",
-      },
-      {
-        "item_name": "Flyer Promosi",
-        "quantity": 5000,
-        "price": 400000,
-        "status": "Pending",
-        "date": "2025-09-20",
-        "division": "Marketing",
-      },
-    ],
-    "Oktober": [
-      {
-        "item_name": "Server Rack",
-        "quantity": 1,
-        "price": 15000000,
-        "status": "Pending",
-        "date": "2025-10-05",
-        "division": "IT",
-      },
-      {
-        "item_name": "Kabel Network Cat6",
-        "quantity": 100,
-        "price": 50000,
-        "status": "Approved",
-        "date": "2025-10-12",
-        "division": "Operations",
-      },
-      {
-        "item_name": "Merchandise Kaos",
-        "quantity": 200,
-        "price": 100000,
-        "status": "Approved",
-        "date": "2025-10-15",
-        "division": "Marketing",
-      },
-      {
-        "item_name": "Mug Custom",
-        "quantity": 150,
-        "price": 50000,
-        "status": "Pending",
-        "date": "2025-10-22",
-        "division": "Marketing",
-      },
-    ],
-    "November": [
-      {
-        "item_name": "CCTV IP Camera",
-        "quantity": 8,
-        "price": 1500000,
-        "status": "Approved",
-        "date": "2025-11-05",
-        "division": "Operations",
-      },
-      {
-        "item_name": "DVR 16 Channel",
-        "quantity": 1,
-        "price": 3500000,
-        "status": "Approved",
-        "date": "2025-11-10",
-        "division": "Operations",
-      },
-      {
-        "item_name": "Kalender Promosi",
-        "quantity": 300,
-        "price": 250000,
-        "status": "Approved",
-        "date": "2025-11-12",
-        "division": "Marketing",
-      },
-      {
-        "item_name": "Souvenir Pulpen",
-        "quantity": 500,
-        "price": 75000,
-        "status": "Pending",
-        "date": "2025-11-20",
-        "division": "Marketing",
-      },
-    ],
-    "Desember": [
-      {
-        "item_name": "Antivirus Enterprise",
-        "quantity": 50,
-        "price": 500000,
-        "status": "Approved",
-        "date": "2025-12-10",
-        "division": "IT",
-      },
-      {
-        "item_name": "Standing Banner",
-        "quantity": 6,
-        "price": 400000,
-        "status": "Approved",
-        "date": "2025-12-12",
-        "division": "Marketing",
-      },
-      {
-        "item_name": "Nota Penjualan",
-        "quantity": 1000,
-        "price": 350000,
-        "status": "Pending",
-        "date": "2025-12-18",
-        "division": "Marketing",
-      },
-    ],
-  };
-
-  // Getter untuk mengakses data dari luar class
-  static Map<String, List<Map<String, dynamic>>> getDummyData() {
-    return _dummyData;
-  }
-
-  // Method untuk filter data berdasarkan divisi
-  static Map<String, List<Map<String, dynamic>>> getDataByDivision(
-    String division,
-  ) {
-    Map<String, List<Map<String, dynamic>>> filteredData = {};
-
-    _dummyData.forEach((month, items) {
-      List<Map<String, dynamic>> filteredItems = items
-          .where((item) => item['division'] == division)
-          .toList();
-
-      if (filteredItems.isNotEmpty) {
-        filteredData[month] = filteredItems;
-      }
-    });
-
-    return filteredData;
-  }
-
-  // Method untuk menambahkan data baru
-  static void addNewRequest(String monthName, Map<String, dynamic> newRequest) {
-    if (_dummyData.containsKey(monthName)) {
-      _dummyData[monthName]!.add(newRequest);
-    } else {
-      _dummyData[monthName] = [newRequest];
-    }
-  }
-
-  // Method untuk update quantity item
-  static bool updateRequestQuantity(
-    String monthName,
-    String itemName,
-    int newQuantity,
-  ) {
-    if (_dummyData.containsKey(monthName)) {
-      final items = _dummyData[monthName]!;
-      for (var item in items) {
-        if (item['item_name'] == itemName) {
-          if (newQuantity > 0) {
-            item['quantity'] = newQuantity;
-            return true;
-          } else {
-            // Jika quantity 0 atau negatif, hapus item
-            items.remove(item);
-            return true;
-          }
-        }
-      }
-    }
-    return false;
-  }
-
-  // Method untuk update item (nama barang dan quantity)
-  static bool updateRequestItem(
-    String monthName,
-    String oldItemName,
-    String newItemName,
-    int newQuantity,
-  ) {
-    if (_dummyData.containsKey(monthName)) {
-      final items = _dummyData[monthName]!;
-      for (var item in items) {
-        if (item['item_name'] == oldItemName) {
-          item['item_name'] = newItemName;
-          item['quantity'] = newQuantity;
-          return true;
-        }
-      }
-    }
-    return false;
-  }
-
-  // Method untuk hapus item
-  static bool deleteRequest(String monthName, String itemName) {
-    if (_dummyData.containsKey(monthName)) {
-      final items = _dummyData[monthName]!;
-      final initialLength = items.length;
-      items.removeWhere((item) => item['item_name'] == itemName);
-      return items.length < initialLength;
-    }
-    return false;
-  }
-
-  // Hitung jumlah notifikasi belum dibaca (Pending & Rejected) untuk divisi tertentu
-  static int getUnreadNotificationCount([String? division]) {
-    int count = 0;
-    _dummyData.forEach((month, items) {
-      for (var item in items) {
-        // Filter berdasarkan divisi jika diberikan
-        if (division != null && item['division'] != division) continue;
-
-        if (item['status'] == 'Pending' || item['status'] == 'Rejected') {
-          count++;
-        }
-      }
-    });
-    return count;
-  }
 
   @override
   State<DashboardUser> createState() => _DashboardUserState();
 }
 
 class _DashboardUserState extends State<DashboardUser> {
-  String? userDivision; // Akan diisi dari SharedPreferences
+  int _currentIndex = 0;
+  String? userDivision;
+  String? userId;
   bool _isLoading = true;
+
+  // Keys untuk refresh child widgets
+  final GlobalKey<_HomeTabState> _homeKey = GlobalKey<_HomeTabState>();
+  final GlobalKey<_StatusTabState> _statusKey = GlobalKey<_StatusTabState>();
 
   final List<String> months = const [
     "Januari",
@@ -517,45 +42,18 @@ class _DashboardUserState extends State<DashboardUser> {
   @override
   void initState() {
     super.initState();
-    _loadUserDivision();
+    _loadUserData();
   }
 
-  // Load divisi user dari SharedPreferences
-  Future<void> _loadUserDivision() async {
+  Future<void> _loadUserData() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      userDivision =
-          prefs.getString('division_name') ?? 'IT'; // Default IT jika tidak ada
+      userDivision = prefs.getString('division_name') ?? 'IT';
+      userId = prefs.getString('user_id') ?? '';
       _isLoading = false;
     });
   }
 
-  // Hitung total item dan total biaya dari semua bulan untuk divisi user
-  Map<String, dynamic> _calculateYearlyTotal() {
-    int totalItems = 0;
-    int totalBudget = 0;
-
-    DashboardUser._dummyData.forEach((month, items) {
-      for (var item in items) {
-        // Filter hanya untuk divisi user
-        if (item['division'] == userDivision) {
-          totalItems += item['quantity'] as int;
-          totalBudget += (item['quantity'] as int) * (item['price'] as int);
-        }
-      }
-    });
-
-    return {'totalItems': totalItems, 'totalBudget': totalBudget};
-  }
-
-  // Method untuk refresh data
-  void _refreshData() {
-    setState(() {
-      // Force rebuild untuk update total
-    });
-  }
-
-  // Method untuk menampilkan dialog logout
   void _showLogoutDialog() {
     showDialog(
       context: context,
@@ -576,13 +74,10 @@ class _DashboardUserState extends State<DashboardUser> {
           ),
           ElevatedButton(
             onPressed: () async {
-              // Clear SharedPreferences
               final prefs = await SharedPreferences.getInstance();
               await prefs.clear();
-              
               if (mounted) {
-                Navigator.pop(context); // Close dialog
-                // Navigate to login page and clear all routes
+                Navigator.pop(context);
                 Navigator.pushNamedAndRemoveUntil(
                   context,
                   '/login',
@@ -601,46 +96,257 @@ class _DashboardUserState extends State<DashboardUser> {
     );
   }
 
+  // Method untuk refresh semua tabs setelah pengajuan baru
+  void _refreshAllTabs() {
+    _homeKey.currentState?._loadData();
+    _statusKey.currentState?._loadData();
+  }
+
   @override
   Widget build(BuildContext context) {
-    // Tampilkan loading saat masih mengambil data divisi
     if (_isLoading || userDivision == null) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-    final yearlyTotal = _calculateYearlyTotal();
-    final totalItems = yearlyTotal['totalItems'] as int;
-    final totalBudget = yearlyTotal['totalBudget'] as int;
+    return Scaffold(
+      backgroundColor: const Color(0xFFF5F7FA),
+      body: IndexedStack(
+        index: _currentIndex,
+        children: [
+          _HomeTab(
+            key: _homeKey,
+            userDivision: userDivision!,
+            months: months,
+            onShowLogout: _showLogoutDialog,
+          ),
+          _StatusTab(
+            key: _statusKey,
+            userDivision: userDivision!,
+            months: months,
+          ),
+          _PengajuanTab(
+            userDivision: userDivision!,
+            months: months,
+            onSubmitSuccess: _refreshAllTabs,
+          ),
+        ],
+      ),
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, -5),
+            ),
+          ],
+        ),
+        child: BottomNavigationBar(
+          currentIndex: _currentIndex,
+          onTap: (index) {
+            setState(() => _currentIndex = index);
+            // Refresh data saat pindah tab
+            if (index == 0) {
+              _homeKey.currentState?._loadData();
+            } else if (index == 1) {
+              _statusKey.currentState?._loadData();
+            }
+          },
+          type: BottomNavigationBarType.fixed,
+          backgroundColor: Colors.white,
+          selectedItemColor: const Color(0xFF1565C0),
+          unselectedItemColor: Colors.grey,
+          selectedFontSize: 12,
+          unselectedFontSize: 12,
+          elevation: 0,
+          items: const [
+            BottomNavigationBarItem(
+              icon: Icon(Icons.home_outlined),
+              activeIcon: Icon(Icons.home),
+              label: 'Home',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.list_alt_outlined),
+              activeIcon: Icon(Icons.list_alt),
+              label: 'Status',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.add_circle_outline),
+              activeIcon: Icon(Icons.add_circle),
+              label: 'Pengajuan',
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
-    // Format angka dengan pemisah ribuan
-    String formatCurrency(int amount) {
-      if (amount >= 1000000000) {
-        return "${(amount / 1000000000).toStringAsFixed(1)}M";
-      } else if (amount >= 1000000) {
-        return "${(amount / 1000000).toStringAsFixed(0)}Jt";
-      } else if (amount >= 1000) {
-        return "${(amount / 1000).toStringAsFixed(0)}K";
+// ==================== HOME TAB ====================
+class _HomeTab extends StatefulWidget {
+  final String userDivision;
+  final List<String> months;
+  final VoidCallback onShowLogout;
+
+  const _HomeTab({
+    super.key,
+    required this.userDivision,
+    required this.months,
+    required this.onShowLogout,
+  });
+
+  @override
+  State<_HomeTab> createState() => _HomeTabState();
+}
+
+class _HomeTabState extends State<_HomeTab> {
+  String _selectedMonth = "";
+  List<Map<String, dynamic>> _allRequests = [];
+  bool _isLoading = true;
+  final DataService _dataService = DataService();
+
+  @override
+  void initState() {
+    super.initState();
+    // Default ke bulan saat ini
+    int currentMonthIndex = DateTime.now().month - 1;
+    _selectedMonth = widget.months[currentMonthIndex];
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    setState(() => _isLoading = true);
+
+    try {
+      String response = await _dataService.selectAll(
+        AppConfig.token,
+        'procumon',
+        'procurement_requests',
+        AppConfig.appid,
+      );
+
+      var jsonResponse = json.decode(response);
+      List requestData = [];
+      if (jsonResponse is Map && jsonResponse['data'] != null) {
+        requestData = jsonResponse['data'] as List;
+      } else if (jsonResponse is List) {
+        requestData = jsonResponse;
       }
-      return amount.toString();
+
+      // Collect processed item keys
+      Set<String> processedItemKeys = {};
+      for (var item in requestData) {
+        String status = item['status']?.toLowerCase() ?? '';
+        if (status == 'approved' || status == 'rejected') {
+          String key =
+              '${item['item_name']}|${item['division_name']}|${item['month_name']}|${item['date']}';
+          processedItemKeys.add(key);
+        }
+      }
+
+      List<Map<String, dynamic>> filteredRequests = [];
+      for (var item in requestData) {
+        String itemDivision = item['division_name'] ?? '';
+        String itemStatus = item['status'] ?? 'Pending';
+        bool isDeleted = itemStatus.toLowerCase() == 'deleted';
+
+        String itemKey =
+            '${item['item_name']}|$itemDivision|${item['month_name']}|${item['date']}';
+        bool isPendingWithProcessedVersion =
+            itemStatus.toLowerCase() == 'pending' &&
+            processedItemKeys.contains(itemKey);
+
+        if (itemDivision == widget.userDivision &&
+            !isDeleted &&
+            !isPendingWithProcessedVersion) {
+          filteredRequests.add({
+            'id': item['id'] ?? item['_id'] ?? '',
+            'item_name': item['item_name'] ?? 'Unknown',
+            'quantity': int.tryParse(item['quantity']?.toString() ?? '0') ?? 0,
+            'price': int.tryParse(item['price']?.toString() ?? '0') ?? 0,
+            'total_price':
+                int.tryParse(item['total_price']?.toString() ?? '0') ?? 0,
+            'status': itemStatus,
+            'date': item['date'] ?? '',
+            'division': itemDivision,
+            'month_name': item['month_name'] ?? '',
+          });
+        }
+      }
+
+      setState(() {
+        _allRequests = filteredRequests;
+        _isLoading = false;
+      });
+    } catch (e) {
+      print('Error loading data: $e');
+      setState(() => _isLoading = false);
+    }
+  }
+
+  // Get requests filtered by selected month
+  List<Map<String, dynamic>> get _filteredRequests {
+    return _allRequests
+        .where((item) => item['month_name'] == _selectedMonth)
+        .toList();
+  }
+
+  // Calculate totals for selected month
+  Map<String, int> _calculateMonthlyTotal() {
+    int totalItems = 0;
+    int totalBudget = 0;
+
+    for (var item in _filteredRequests) {
+      totalItems += item['quantity'] as int;
+      totalBudget += (item['quantity'] as int) * (item['price'] as int);
     }
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FA), // Background abu muda
-      body: SingleChildScrollView(
+    return {'totalItems': totalItems, 'totalBudget': totalBudget};
+  }
+
+  // Get notification count
+  int _getNotificationCount() {
+    return _allRequests
+        .where(
+          (item) => item['status'] == 'Pending' || item['status'] == 'Rejected',
+        )
+        .length;
+  }
+
+  String _formatCurrency(int amount) {
+    if (amount >= 1000000000) {
+      return "${(amount / 1000000000).toStringAsFixed(1)}M";
+    } else if (amount >= 1000000) {
+      return "${(amount / 1000000).toStringAsFixed(0)}Jt";
+    } else if (amount >= 1000) {
+      return "${(amount / 1000).toStringAsFixed(0)}K";
+    }
+    return amount.toString();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final monthlyTotal = _calculateMonthlyTotal();
+    final totalItems = monthlyTotal['totalItems']!;
+    final totalBudget = monthlyTotal['totalBudget']!;
+
+    return RefreshIndicator(
+      onRefresh: _loadData,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
         child: Column(
           children: [
+            // Header with gradient
             Stack(
               clipBehavior: Clip.none,
               children: [
                 Container(
-                  height: 200,
+                  height: 220,
                   width: double.infinity,
                   decoration: const BoxDecoration(
                     gradient: LinearGradient(
-                      colors: [
-                        Color(0xFF1565C0),
-                        Color(0xFF1E88E5),
-                      ], // Biru Profesional
+                      colors: [Color(0xFF1565C0), Color(0xFF1E88E5)],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),
@@ -649,158 +355,162 @@ class _DashboardUserState extends State<DashboardUser> {
                       bottomRight: Radius.circular(30),
                     ),
                   ),
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(24, 60, 24, 0),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              "Halo, Divisi $userDivision",
-                              style: const TextStyle(
-                                color: Colors.white70,
-                                fontSize: 16,
-                              ),
-                            ),
-                            const SizedBox(height: 5),
-                            const Text(
-                              "ProcuMon",
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 22,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                        Row(
-                          children: [
-                            // Icon Notifikasi dengan badge
-                            Stack(
-                              clipBehavior: Clip.none,
-                              children: [
-                                GestureDetector(
-                                  onTap: () {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) => NotificationPage(
-                                          userDivision: userDivision!,
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                  child: Container(
-                                    padding: const EdgeInsets.all(10),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white.withOpacity(0.2),
-                                      shape: BoxShape.circle,
-                                    ),
-                                    child: const Icon(
-                                      Icons.notifications_outlined,
-                                      color: Colors.white,
-                                      size: 24,
-                                    ),
-                                  ),
+                  child: SafeArea(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                "Halo, Divisi ${widget.userDivision}",
+                                style: const TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 16,
                                 ),
-                                // Badge notifikasi belum dibaca
-                                Positioned(
-                                  top: -2,
-                                  right: -2,
-                                  child: Container(
-                                    padding: const EdgeInsets.all(4),
-                                    decoration: const BoxDecoration(
-                                      color: Colors.red,
-                                      shape: BoxShape.circle,
-                                    ),
-                                    constraints: const BoxConstraints(
-                                      minWidth: 18,
-                                      minHeight: 18,
-                                    ),
-                                    child: Center(
-                                      child: Text(
-                                        DashboardUser.getUnreadNotificationCount(
-                                          userDivision,
-                                        ).toString(),
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(width: 12),
-                            // Icon Profil
-                            GestureDetector(
-                              onTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => ProfilePage(
-                                      userDivision: userDivision!,
-                                    ),
-                                  ),
-                                );
-                              },
-                              child: const CircleAvatar(
-                                backgroundColor: Colors.white24,
-                                child: Icon(Icons.person, color: Colors.white),
                               ),
-                            ),
-                            const SizedBox(width: 12),
-                            // Icon Logout
-                            GestureDetector(
-                              onTap: () => _showLogoutDialog(),
-                              child: Container(
-                                padding: const EdgeInsets.all(10),
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withOpacity(0.2),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: const Icon(
-                                  Icons.logout,
+                              const SizedBox(height: 5),
+                              const Text(
+                                "ProcuMon",
+                                style: TextStyle(
                                   color: Colors.white,
-                                  size: 24,
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.bold,
                                 ),
                               ),
-                            ),
-                          ],
-                        ),
-                      ],
+                            ],
+                          ),
+                          Row(
+                            children: [
+                              // Notification Icon
+                              Stack(
+                                clipBehavior: Clip.none,
+                                children: [
+                                  GestureDetector(
+                                    onTap: () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) =>
+                                              NotificationPage(
+                                                userDivision:
+                                                    widget.userDivision,
+                                              ),
+                                        ),
+                                      );
+                                    },
+                                    child: Container(
+                                      padding: const EdgeInsets.all(10),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white.withOpacity(0.2),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: const Icon(
+                                        Icons.notifications_outlined,
+                                        color: Colors.white,
+                                        size: 24,
+                                      ),
+                                    ),
+                                  ),
+                                  if (_getNotificationCount() > 0)
+                                    Positioned(
+                                      top: -2,
+                                      right: -2,
+                                      child: Container(
+                                        padding: const EdgeInsets.all(4),
+                                        decoration: const BoxDecoration(
+                                          color: Colors.red,
+                                          shape: BoxShape.circle,
+                                        ),
+                                        constraints: const BoxConstraints(
+                                          minWidth: 18,
+                                          minHeight: 18,
+                                        ),
+                                        child: Center(
+                                          child: Text(
+                                            _getNotificationCount().toString(),
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                              const SizedBox(width: 12),
+                              // Profile Icon
+                              GestureDetector(
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => ProfilePage(
+                                        userDivision: widget.userDivision,
+                                      ),
+                                    ),
+                                  );
+                                },
+                                child: const CircleAvatar(
+                                  backgroundColor: Colors.white24,
+                                  child: Icon(
+                                    Icons.person,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              // Logout Icon
+                              GestureDetector(
+                                onTap: widget.onShowLogout,
+                                child: Container(
+                                  padding: const EdgeInsets.all(10),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.2),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(
+                                    Icons.logout,
+                                    color: Colors.white,
+                                    size: 24,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
 
-                // KARTU RINGKASAN (Floating Card)
+                // Summary Card (Floating) - Diperbesar
                 Positioned(
-                  bottom: -40,
-                  left: 24,
-                  right: 24,
+                  bottom: -45,
+                  left: 20,
+                  right: 20,
                   child: Container(
                     padding: const EdgeInsets.symmetric(
-                      vertical: 20,
-                      horizontal: 24,
+                      vertical: 16,
+                      horizontal: 8,
                     ),
                     decoration: BoxDecoration(
                       color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(18),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.05),
+                          color: Colors.black.withOpacity(0.06),
                           blurRadius: 15,
-                          offset: const Offset(0, 5),
+                          offset: const Offset(0, 6),
                         ),
                       ],
                     ),
                     child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         _buildSummaryInfo(
                           "Total Item",
@@ -810,12 +520,12 @@ class _DashboardUserState extends State<DashboardUser> {
                         ),
                         Container(
                           width: 1,
-                          height: 40,
+                          height: 50,
                           color: Colors.grey.shade200,
                         ),
                         _buildSummaryInfo(
                           "Total Biaya",
-                          formatCurrency(totalBudget),
+                          "${_formatCurrency(totalBudget)}",
                           Icons.attach_money,
                           Colors.green,
                         ),
@@ -826,233 +536,1275 @@ class _DashboardUserState extends State<DashboardUser> {
               ],
             ),
 
-            const SizedBox(height: 60), // Jarak agar list tidak tertutup header
-            // --- 2. LIST BULAN (PERSEGI PANJANG) ---
+            const SizedBox(height: 75),
+
+            // Month Filter
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
+              padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
-                    "Periode 2025",
+                    "Pilih Bulan",
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
-                  const SizedBox(height: 16),
-
-                  ListView.separated(
-                    padding: const EdgeInsets.only(bottom: 30),
-                    shrinkWrap: true, // Agar bisa discroll bareng parent
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: months.length,
-                    separatorBuilder: (context, index) =>
-                        const SizedBox(height: 14),
-                    itemBuilder: (context, index) {
-                      return _buildListItem(context, months[index], index + 1);
-                    },
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    height: 48,
+                    child: ListView.builder(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: widget.months.length,
+                      itemBuilder: (context, index) {
+                        final month = widget.months[index];
+                        final isSelected = month == _selectedMonth;
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 10),
+                          child: GestureDetector(
+                            onTap: () {
+                              setState(() => _selectedMonth = month);
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 20,
+                                vertical: 12,
+                              ),
+                              decoration: BoxDecoration(
+                                color: isSelected
+                                    ? const Color(0xFF1565C0)
+                                    : Colors.white,
+                                borderRadius: BorderRadius.circular(25),
+                                border: Border.all(
+                                  color: isSelected
+                                      ? const Color(0xFF1565C0)
+                                      : Colors.grey.shade300,
+                                ),
+                                boxShadow: isSelected
+                                    ? [
+                                        BoxShadow(
+                                          color: const Color(
+                                            0xFF1565C0,
+                                          ).withOpacity(0.3),
+                                          blurRadius: 8,
+                                          offset: const Offset(0, 3),
+                                        ),
+                                      ]
+                                    : null,
+                              ),
+                              child: Text(
+                                month,
+                                style: TextStyle(
+                                  color: isSelected
+                                      ? Colors.white
+                                      : Colors.grey.shade700,
+                                  fontWeight: isSelected
+                                      ? FontWeight.bold
+                                      : FontWeight.normal,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
                   ),
                 ],
               ),
             ),
+
+            const SizedBox(height: 24),
+
+            // Achievement section
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "Ringkasan $_selectedMonth",
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  _isLoading
+                      ? const Center(child: CircularProgressIndicator())
+                      : _filteredRequests.isEmpty
+                      ? _buildEmptyState()
+                      : _buildAchievementCards(),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 100),
           ],
         ),
       ),
     );
   }
 
-  // Widget Helper: Item List Persegi Panjang
-  Widget _buildListItem(BuildContext context, String monthName, int index) {
-    // Hitung jumlah pengajuan per bulan dari dummy data
-    int requestCount = DashboardUser._dummyData[monthName]?.length ?? 0;
-
-    // Warna biru konsisten untuk semua bulan
-    const Color blueColor = Color(0xFF1565C0);
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 2),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.12),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
-            spreadRadius: 0,
-          ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () async {
-            await Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => MonthlyDetailPage(
-                  monthName: monthName,
-                  monthIndex: index,
-                  userDivision: userDivision!,
-                ),
-              ),
-            );
-            // Refresh data setelah kembali dari monthly detail page
-            _refreshData();
-          },
-          borderRadius: BorderRadius.circular(16),
-          splashColor: blueColor.withOpacity(0.1),
-          highlightColor: blueColor.withOpacity(0.05),
-          child: Ink(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.grey.shade200, width: 1),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(18),
-              child: Row(
-                children: [
-                  // Icon Kotak di Kiri
-                  Container(
-                    width: 56,
-                    height: 56,
-                    decoration: BoxDecoration(
-                      color: blueColor.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: blueColor, width: 1.5),
-                    ),
-                    child: Center(
-                      child: Text(
-                        index.toString().padLeft(2, '0'),
-                        style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: blueColor,
-                          letterSpacing: 1,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-
-                  // Teks Tengah
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Text(
-                              monthName,
-                              style: const TextStyle(
-                                fontSize: 17,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black87,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 4,
-                              ),
-                              decoration: BoxDecoration(
-                                color: blueColor.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: blueColor.withOpacity(0.3),
-                                  width: 1,
-                                ),
-                              ),
-                              child: Text(
-                                requestCount.toString(),
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                  color: blueColor,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 6),
-                        Row(
-                          children: [
-                            Icon(
-                              requestCount > 0
-                                  ? Icons.check_circle_outline
-                                  : Icons.calendar_today_outlined,
-                              size: 14,
-                              color: Colors.grey.shade600,
-                            ),
-                            const SizedBox(width: 6),
-                            Expanded(
-                              child: Text(
-                                "$requestCount pengajuan",
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  color: Colors.grey.shade600,
-                                  fontWeight: FontWeight.w400,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  // Panah Kanan
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade100,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      Icons.arrow_forward_ios,
-                      size: 16,
-                      color: Colors.grey.shade600,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  // Widget Helper: Info di Header
   Widget _buildSummaryInfo(
     String label,
     String value,
     IconData icon,
     Color color,
   ) {
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
-            shape: BoxShape.circle,
-          ),
-          child: Icon(icon, color: color, size: 20),
-        ),
-        const SizedBox(width: 12),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(
-              value,
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [color.withOpacity(0.15), color.withOpacity(0.05)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: color.withOpacity(0.2), width: 1.5),
+              ),
+              child: Icon(icon, color: color, size: 26),
             ),
-            Text(
-              label,
-              style: const TextStyle(fontSize: 12, color: Colors.grey),
+            const SizedBox(width: 12),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  value,
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey.shade800,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey.shade500,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Container(
+      padding: const EdgeInsets.all(40),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        children: [
+          Icon(Icons.inbox_outlined, size: 60, color: Colors.grey.shade300),
+          const SizedBox(height: 16),
+          Text(
+            "Belum ada pengajuan di bulan $_selectedMonth",
+            style: TextStyle(color: Colors.grey.shade600),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAchievementCards() {
+    // Group by status
+    int approved = _filteredRequests
+        .where((r) => r['status'] == 'Approved')
+        .length;
+    int pending = _filteredRequests
+        .where((r) => r['status'] == 'Pending')
+        .length;
+    int rejected = _filteredRequests
+        .where((r) => r['status'] == 'Rejected')
+        .length;
+
+    return Column(
+      children: [
+        _buildStatusCard(
+          "Disetujui",
+          approved,
+          Colors.green,
+          Icons.check_circle_outline,
+        ),
+        const SizedBox(height: 12),
+        _buildStatusCard("Menunggu", pending, Colors.orange, Icons.access_time),
+        const SizedBox(height: 12),
+        _buildStatusCard(
+          "Ditolak",
+          rejected,
+          Colors.red,
+          Icons.cancel_outlined,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStatusCard(String label, int count, Color color, IconData icon) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.1),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, color: color, size: 24),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Text(
+              label,
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              count.toString(),
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: color,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ==================== STATUS TAB ====================
+class _StatusTab extends StatefulWidget {
+  final String userDivision;
+  final List<String> months;
+
+  const _StatusTab({
+    super.key,
+    required this.userDivision,
+    required this.months,
+  });
+
+  @override
+  State<_StatusTab> createState() => _StatusTabState();
+}
+
+class _StatusTabState extends State<_StatusTab> {
+  String _selectedMonth = "";
+  List<Map<String, dynamic>> _allRequests = [];
+  bool _isLoading = true;
+  final DataService _dataService = DataService();
+
+  @override
+  void initState() {
+    super.initState();
+    int currentMonthIndex = DateTime.now().month - 1;
+    _selectedMonth = widget.months[currentMonthIndex];
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    setState(() => _isLoading = true);
+
+    try {
+      String response = await _dataService.selectAll(
+        AppConfig.token,
+        'procumon',
+        'procurement_requests',
+        AppConfig.appid,
+      );
+
+      var jsonResponse = json.decode(response);
+      List requestData = [];
+      if (jsonResponse is Map && jsonResponse['data'] != null) {
+        requestData = jsonResponse['data'] as List;
+      } else if (jsonResponse is List) {
+        requestData = jsonResponse;
+      }
+
+      // Collect processed item keys
+      Set<String> processedItemKeys = {};
+      for (var item in requestData) {
+        String status = item['status']?.toLowerCase() ?? '';
+        if (status == 'approved' || status == 'rejected') {
+          String key =
+              '${item['item_name']}|${item['division_name']}|${item['month_name']}|${item['date']}';
+          processedItemKeys.add(key);
+        }
+      }
+
+      List<Map<String, dynamic>> filteredRequests = [];
+      for (var item in requestData) {
+        String itemDivision = item['division_name'] ?? '';
+        String itemStatus = item['status'] ?? 'Pending';
+        bool isDeleted = itemStatus.toLowerCase() == 'deleted';
+
+        String itemKey =
+            '${item['item_name']}|$itemDivision|${item['month_name']}|${item['date']}';
+        bool isPendingWithProcessedVersion =
+            itemStatus.toLowerCase() == 'pending' &&
+            processedItemKeys.contains(itemKey);
+
+        if (itemDivision == widget.userDivision &&
+            !isDeleted &&
+            !isPendingWithProcessedVersion) {
+          filteredRequests.add({
+            'id': item['id'] ?? item['_id'] ?? '',
+            'item_name': item['item_name'] ?? 'Unknown',
+            'quantity': int.tryParse(item['quantity']?.toString() ?? '0') ?? 0,
+            'price': int.tryParse(item['price']?.toString() ?? '0') ?? 0,
+            'total_price':
+                int.tryParse(item['total_price']?.toString() ?? '0') ?? 0,
+            'status': itemStatus,
+            'date': item['date'] ?? '',
+            'division': itemDivision,
+            'month_name': item['month_name'] ?? '',
+            'rejection_reason': item['rejection_reason'] ?? '',
+          });
+        }
+      }
+
+      setState(() {
+        _allRequests = filteredRequests;
+        _isLoading = false;
+      });
+    } catch (e) {
+      print('Error loading data: $e');
+      setState(() => _isLoading = false);
+    }
+  }
+
+  List<Map<String, dynamic>> get _filteredRequests {
+    return _allRequests
+        .where((item) => item['month_name'] == _selectedMonth)
+        .toList();
+  }
+
+  Map<String, int> _calculateMonthlyTotal() {
+    int totalItems = 0;
+    int totalBudget = 0;
+    for (var item in _filteredRequests) {
+      totalItems += item['quantity'] as int;
+      totalBudget += (item['quantity'] as int) * (item['price'] as int);
+    }
+    return {'totalItems': totalItems, 'totalBudget': totalBudget};
+  }
+
+  String _formatNumber(int number) {
+    return number.toString().replaceAllMapped(
+      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+      (Match m) => '${m[1]}.',
+    );
+  }
+
+  String _formatCurrency(int amount) {
+    if (amount >= 1000000000) {
+      return "${(amount / 1000000000).toStringAsFixed(1)}M";
+    } else if (amount >= 1000000) {
+      return "${(amount / 1000000).toStringAsFixed(0)}Jt";
+    } else if (amount >= 1000) {
+      return "${(amount / 1000).toStringAsFixed(0)}K";
+    }
+    return amount.toString();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final monthlyTotal = _calculateMonthlyTotal();
+    final totalItems = monthlyTotal['totalItems']!;
+    final totalBudget = monthlyTotal['totalBudget']!;
+
+    return RefreshIndicator(
+      onRefresh: _loadData,
+      child: Column(
+        children: [
+          // Header
+          Container(
+            width: double.infinity,
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Color(0xFF1565C0), Color(0xFF1E88E5)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+            ),
+            child: SafeArea(
+              bottom: false,
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      "Status Pengajuan",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      "Divisi ${widget.userDivision}",
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+
+          // Summary Card - Diperbesar
+          // Summary Card - Diperbesar
+          Container(
+            margin: const EdgeInsets.all(16),
+            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(18),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 15,
+                  offset: const Offset(0, 5),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                _buildSummaryCard(
+                  "Total Item",
+                  "$totalItems Pcs",
+                  Icons.shopping_bag_outlined,
+                  Colors.orange,
+                ),
+                Container(width: 1, height: 50, color: Colors.grey.shade200),
+                _buildSummaryCard(
+                  "Total Biaya",
+                  "${_formatCurrency(totalBudget)}",
+                  Icons.attach_money,
+                  Colors.green,
+                ),
+              ],
+            ),
+          ),
+
+          // Month Filter
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: SizedBox(
+              height: 45,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                itemCount: widget.months.length,
+                itemBuilder: (context, index) {
+                  final month = widget.months[index];
+                  final isSelected = month == _selectedMonth;
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: GestureDetector(
+                      onTap: () => setState(() => _selectedMonth = month),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 18,
+                          vertical: 10,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? const Color(0xFF1565C0)
+                              : Colors.white,
+                          borderRadius: BorderRadius.circular(22),
+                          border: Border.all(
+                            color: isSelected
+                                ? const Color(0xFF1565C0)
+                                : Colors.grey.shade300,
+                          ),
+                          boxShadow: isSelected
+                              ? [
+                                  BoxShadow(
+                                    color: const Color(
+                                      0xFF1565C0,
+                                    ).withOpacity(0.3),
+                                    blurRadius: 6,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ]
+                              : null,
+                        ),
+                        child: Text(
+                          month,
+                          style: TextStyle(
+                            color: isSelected
+                                ? Colors.white
+                                : Colors.grey.shade700,
+                            fontWeight: isSelected
+                                ? FontWeight.bold
+                                : FontWeight.normal,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
+          // List of requests
+          Expanded(
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _filteredRequests.isEmpty
+                ? _buildEmptyState()
+                : ListView.builder(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    itemCount: _filteredRequests.length,
+                    itemBuilder: (context, index) {
+                      return _buildRequestCard(_filteredRequests[index]);
+                    },
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSummaryCard(
+    String label,
+    String value,
+    IconData icon,
+    Color color,
+  ) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [color.withOpacity(0.15), color.withOpacity(0.05)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: color.withOpacity(0.2), width: 1.5),
+              ),
+              child: Icon(icon, color: color, size: 24),
+            ),
+            const SizedBox(width: 10),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  value,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey.shade800,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Colors.grey.shade500,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.inbox_outlined, size: 80, color: Colors.grey.shade300),
+          const SizedBox(height: 16),
+          Text(
+            "Belum ada pengajuan di bulan $_selectedMonth",
+            style: TextStyle(color: Colors.grey.shade600),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRequestCard(Map<String, dynamic> item) {
+    Color statusColor = Colors.orange;
+    if (item['status'] == 'Approved') statusColor = Colors.green;
+    if (item['status'] == 'Rejected') statusColor = Colors.red;
+
+    int totalPrice = (item['quantity'] as int) * (item['price'] as int);
+    bool canEdit = item['status'] == 'Pending';
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(
+                    Icons.inventory_2_outlined,
+                    color: Colors.blue,
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        item['item_name'] ?? 'No Name',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        "Tanggal: ${item['date']}",
+                        style: TextStyle(
+                          color: Colors.grey.shade600,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: statusColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: statusColor),
+                  ),
+                  child: Text(
+                    item['status'] ?? 'Pending',
+                    style: TextStyle(
+                      color: statusColor,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                if (canEdit) ...[
+                  const SizedBox(width: 4),
+                  IconButton(
+                    icon: const Icon(Icons.edit_outlined, size: 18),
+                    color: Colors.blue,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    onPressed: () => _showEditDialog(item),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline, size: 18),
+                    color: Colors.red,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    onPressed: () => _showDeleteConfirmation(item),
+                  ),
+                ],
+              ],
+            ),
+            const Divider(height: 24),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                _buildDetailColumn("Kuantitas", "${item['quantity']} pcs"),
+                _buildDetailColumn(
+                  "Harga Satuan",
+                  "Rp ${_formatNumber(item['price'])}",
+                ),
+                _buildDetailColumn(
+                  "Total",
+                  "Rp ${_formatNumber(totalPrice)}",
+                  isHighlight: true,
+                ),
+              ],
+            ),
+            // Show rejection reason
+            if (item['status'] == 'Rejected' &&
+                item['rejection_reason'] != null &&
+                item['rejection_reason'].toString().isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.red.shade200),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.info_outline,
+                          size: 16,
+                          color: Colors.red.shade700,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Alasan Penolakan:',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Colors.red.shade700,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      item['rejection_reason'].toString(),
+                      style: TextStyle(
+                        color: Colors.red.shade900,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDetailColumn(
+    String label,
+    String value, {
+    bool isHighlight = false,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: isHighlight ? 15 : 14,
+            fontWeight: isHighlight ? FontWeight.bold : FontWeight.w600,
+            color: isHighlight ? Colors.blue : Colors.black87,
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _showEditDialog(Map<String, dynamic> item) {
+    final TextEditingController nameController = TextEditingController(
+      text: item['item_name'],
+    );
+    final TextEditingController quantityController = TextEditingController(
+      text: item['quantity'].toString(),
+    );
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.edit, color: Colors.blue),
+            SizedBox(width: 8),
+            Text("Edit Pengajuan"),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nameController,
+              decoration: InputDecoration(
+                labelText: "Nama Barang",
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                prefixIcon: const Icon(Icons.inventory_2_outlined),
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: quantityController,
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(
+                labelText: "Quantity",
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                suffixText: "pcs",
+                prefixIcon: const Icon(Icons.numbers),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Batal"),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final newName = nameController.text.trim();
+              final newQuantity = int.tryParse(quantityController.text) ?? 0;
+
+              if (newName.isEmpty || newQuantity <= 0) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text("Data tidak valid")),
+                );
+                return;
+              }
+
+              Navigator.pop(context);
+
+              try {
+                await _dataService.updateId(
+                  'item_name',
+                  newName,
+                  AppConfig.token,
+                  'procumon',
+                  'procurement_requests',
+                  AppConfig.appid,
+                  item['id'],
+                );
+                await _dataService.updateId(
+                  'quantity',
+                  newQuantity.toString(),
+                  AppConfig.token,
+                  'procumon',
+                  'procurement_requests',
+                  AppConfig.appid,
+                  item['id'],
+                );
+
+                int newTotalPrice = newQuantity * (item['price'] as int);
+                await _dataService.updateId(
+                  'total_price',
+                  newTotalPrice.toString(),
+                  AppConfig.token,
+                  'procumon',
+                  'procurement_requests',
+                  AppConfig.appid,
+                  item['id'],
+                );
+
+                _loadData();
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text("Pengajuan berhasil diperbarui"),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text("Gagal memperbarui: $e"),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF1565C0),
+              foregroundColor: Colors.white,
+            ),
+            child: const Text("Simpan"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showDeleteConfirmation(Map<String, dynamic> item) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.delete_outline, color: Colors.red),
+            SizedBox(width: 8),
+            Text("Konfirmasi Hapus"),
+          ],
+        ),
+        content: Text(
+          "Apakah Anda yakin ingin menghapus pengajuan \"${item['item_name']}\"?",
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Batal"),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              try {
+                await _dataService.updateId(
+                  'status',
+                  'Deleted',
+                  AppConfig.token,
+                  'procumon',
+                  'procurement_requests',
+                  AppConfig.appid,
+                  item['id'],
+                );
+                _loadData();
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text("Pengajuan berhasil dihapus"),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text("Gagal menghapus: $e"),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text("Hapus"),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ==================== PENGAJUAN TAB ====================
+class _PengajuanTab extends StatefulWidget {
+  final String userDivision;
+  final List<String> months;
+  final VoidCallback onSubmitSuccess;
+
+  const _PengajuanTab({
+    required this.userDivision,
+    required this.months,
+    required this.onSubmitSuccess,
+  });
+
+  @override
+  State<_PengajuanTab> createState() => _PengajuanTabState();
+}
+
+class _PengajuanTabState extends State<_PengajuanTab> {
+  String _selectedMonth = "";
+
+  @override
+  void initState() {
+    super.initState();
+    int currentMonthIndex = DateTime.now().month - 1;
+    _selectedMonth = widget.months[currentMonthIndex];
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        // Header
+        Container(
+          width: double.infinity,
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Color(0xFF1565C0), Color(0xFF1E88E5)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
+          child: SafeArea(
+            bottom: false,
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    "Ajukan Barang",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    "Divisi ${widget.userDivision}",
+                    style: const TextStyle(color: Colors.white70, fontSize: 14),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Month selection
+                const Text(
+                  "Pilih Bulan Pengajuan",
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.grey.shade300),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.grey.withOpacity(0.1),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: _selectedMonth,
+                      isExpanded: true,
+                      icon: const Icon(
+                        Icons.keyboard_arrow_down,
+                        color: Color(0xFF1565C0),
+                      ),
+                      items: widget.months.map((month) {
+                        return DropdownMenuItem<String>(
+                          value: month,
+                          child: Text(month),
+                        );
+                      }).toList(),
+                      onChanged: (value) {
+                        if (value != null) {
+                          setState(() => _selectedMonth = value);
+                        }
+                      },
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 30),
+
+                // Info card
+                Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade50,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.blue.shade100),
+                  ),
+                  child: Column(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.blue.withOpacity(0.2),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: Icon(
+                          Icons.add_shopping_cart,
+                          size: 48,
+                          color: Colors.blue.shade600,
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      const Text(
+                        "Ajukan Pengadaan Barang",
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        "Silakan ajukan barang yang dibutuhkan untuk divisi ${widget.userDivision}. Setelah pengajuan berhasil, Anda dapat melihat statusnya di menu Status.",
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Colors.grey.shade700,
+                          height: 1.6,
+                          fontSize: 14,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      // Tips
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.lightbulb_outline,
+                              color: Colors.amber.shade700,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                "Pengajuan yang masih Pending dapat diedit di menu Status",
+                                style: TextStyle(
+                                  color: Colors.grey.shade700,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 30),
+
+                // Submit button
+                SizedBox(
+                  width: double.infinity,
+                  height: 56,
+                  child: ElevatedButton.icon(
+                    onPressed: () async {
+                      final result = await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => AddRequestPage(
+                            monthName: _selectedMonth,
+                            userDivision: widget.userDivision,
+                          ),
+                        ),
+                      );
+
+                      if (result == true && mounted) {
+                        widget.onSubmitSuccess();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              "Pengajuan berhasil! Lihat di menu Status",
+                            ),
+                            backgroundColor: Colors.green,
+                          ),
+                        );
+                      }
+                    },
+                    icon: const Icon(Icons.add_circle_outline, size: 24),
+                    label: const Text(
+                      "Buat Pengajuan Baru",
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF1565C0),
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      elevation: 4,
+                      shadowColor: const Color(0xFF1565C0).withOpacity(0.4),
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+              ],
+            ),
+          ),
         ),
       ],
     );

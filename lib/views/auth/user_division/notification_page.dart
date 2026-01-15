@@ -1,16 +1,106 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'dashboard_user.dart';
+import '../../../core/restapi.dart';
+import '../../../core/config.dart';
 
-class NotificationPage extends StatelessWidget {
+class NotificationPage extends StatefulWidget {
   final String userDivision;
 
   const NotificationPage({super.key, required this.userDivision});
 
   @override
-  Widget build(BuildContext context) {
-    // Ambil semua notifikasi dari data dummy untuk divisi user
-    List<Map<String, dynamic>> notifications = _generateNotifications();
+  State<NotificationPage> createState() => _NotificationPageState();
+}
 
+class _NotificationPageState extends State<NotificationPage> {
+  List<Map<String, dynamic>> _notifications = [];
+  bool _isLoading = true;
+  final DataService _dataService = DataService();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadNotifications();
+  }
+
+  Future<void> _loadNotifications() async {
+    setState(() => _isLoading = true);
+
+    try {
+      String response = await _dataService.selectAll(
+        AppConfig.token,
+        'procumon',
+        'procurement_requests',
+        AppConfig.appid,
+      );
+
+      var jsonResponse = json.decode(response);
+      List requestData = [];
+      if (jsonResponse is Map && jsonResponse['data'] != null) {
+        requestData = jsonResponse['data'] as List;
+      } else if (jsonResponse is List) {
+        requestData = jsonResponse;
+      }
+
+      List<Map<String, dynamic>> allNotifications = [];
+      for (var item in requestData) {
+        String itemDivision = item['division_name'] ?? '';
+        String itemStatus = item['status'] ?? 'Pending';
+
+        // Filter only for user's division and not deleted
+        if (itemDivision != widget.userDivision) continue;
+        if (itemStatus.toLowerCase() == 'deleted') continue;
+
+        String message = "";
+        Color statusColor = Colors.orange;
+        IconData icon = Icons.hourglass_empty;
+        String monthName = item['month_name'] ?? '';
+
+        if (itemStatus == 'Approved') {
+          message =
+              "Pengajuan ${item['item_name']} untuk bulan $monthName telah disetujui oleh Admin";
+          statusColor = Colors.green;
+          icon = Icons.check_circle;
+        } else if (itemStatus == 'Rejected') {
+          message =
+              "Pengajuan ${item['item_name']} untuk bulan $monthName ditolak oleh Admin";
+          statusColor = Colors.red;
+          icon = Icons.cancel;
+        } else if (itemStatus == 'Pending') {
+          message =
+              "Pengajuan ${item['item_name']} untuk bulan $monthName sedang menunggu persetujuan Admin";
+          statusColor = Colors.orange;
+          icon = Icons.pending;
+        }
+
+        allNotifications.add({
+          'message': message,
+          'status': itemStatus,
+          'color': statusColor,
+          'icon': icon,
+          'date': item['date'] ?? '',
+          'itemName': item['item_name'] ?? 'Unknown',
+          'month': monthName,
+          'isRead': itemStatus == 'Approved',
+          'rejectionReason': item['rejection_reason'] ?? '',
+        });
+      }
+
+      // Sort by date descending
+      allNotifications.sort((a, b) => b['date'].compareTo(a['date']));
+
+      setState(() {
+        _notifications = allNotifications;
+        _isLoading = false;
+      });
+    } catch (e) {
+      print('Error loading notifications: $e');
+      setState(() => _isLoading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FA),
       appBar: AppBar(
@@ -19,97 +109,44 @@ class NotificationPage extends StatelessWidget {
         foregroundColor: Colors.black,
         elevation: 1,
         actions: [
-          TextButton(
-            onPressed: () {
-              // Mark all as read
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text("Semua notifikasi ditandai sudah dibaca"),
-                ),
-              );
-            },
-            child: const Text("Tandai Semua", style: TextStyle(fontSize: 13)),
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _loadNotifications,
+            tooltip: 'Refresh',
           ),
         ],
       ),
-      body: notifications.isEmpty
-          ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.notifications_off_outlined,
-                    size: 80,
-                    color: Colors.grey.shade300,
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    "Tidak ada notifikasi",
-                    style: TextStyle(color: Colors.grey, fontSize: 16),
-                  ),
-                ],
-              ),
-            )
-          : ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: notifications.length,
-              itemBuilder: (context, index) {
-                return _buildNotificationCard(notifications[index]);
-              },
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : RefreshIndicator(
+              onRefresh: _loadNotifications,
+              child: _notifications.isEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.notifications_off_outlined,
+                            size: 80,
+                            color: Colors.grey.shade300,
+                          ),
+                          const SizedBox(height: 16),
+                          const Text(
+                            "Tidak ada notifikasi",
+                            style: TextStyle(color: Colors.grey, fontSize: 16),
+                          ),
+                        ],
+                      ),
+                    )
+                  : ListView.builder(
+                      padding: const EdgeInsets.all(16),
+                      itemCount: _notifications.length,
+                      itemBuilder: (context, index) {
+                        return _buildNotificationCard(_notifications[index]);
+                      },
+                    ),
             ),
     );
-  }
-
-  // Generate notifikasi dari data dummy untuk divisi user
-  List<Map<String, dynamic>> _generateNotifications() {
-    List<Map<String, dynamic>> allNotifications = [];
-    final dummyData = DashboardUser.getDummyData();
-
-    dummyData.forEach((month, items) {
-      for (var item in items) {
-        // Filter hanya untuk divisi user
-        if (item['division'] != userDivision) continue;
-
-        String message = "";
-        Color statusColor = Colors.orange;
-        IconData icon = Icons.hourglass_empty;
-
-        if (item['status'] == 'Approved') {
-          message =
-              "Pengajuan ${item['item_name']} untuk bulan $month telah disetujui oleh Admin";
-          statusColor = Colors.green;
-          icon = Icons.check_circle;
-        } else if (item['status'] == 'Rejected') {
-          message =
-              "Pengajuan ${item['item_name']} untuk bulan $month ditolak oleh Admin";
-          statusColor = Colors.red;
-          icon = Icons.cancel;
-        } else if (item['status'] == 'Pending') {
-          message =
-              "Pengajuan ${item['item_name']} untuk bulan $month sedang menunggu persetujuan Admin";
-          statusColor = Colors.orange;
-          icon = Icons.pending;
-        }
-
-        allNotifications.add({
-          'message': message,
-          'status': item['status'],
-          'color': statusColor,
-          'icon': icon,
-          'date': item['date'],
-          'itemName': item['item_name'],
-          'month': month,
-          'isRead':
-              item['status'] ==
-              'Approved', // Approved sudah dibaca, pending/rejected belum
-        });
-      }
-    });
-
-    // Sort berdasarkan tanggal terbaru
-    allNotifications.sort((a, b) => b['date'].compareTo(a['date']));
-
-    return allNotifications;
   }
 
   Widget _buildNotificationCard(Map<String, dynamic> notif) {
