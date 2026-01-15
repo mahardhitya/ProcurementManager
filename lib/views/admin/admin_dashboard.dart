@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:procurement/core/config.dart';
@@ -16,145 +17,30 @@ class AdminDashboard extends StatefulWidget {
 }
 
 class _AdminDashboardState extends State<AdminDashboard> {
-  final DataService _svc = DataService();
-  bool _loading = true;
-  List<MonthlyBudgetsModel> _budgets = [];
-  List<ProcurementRequestsModel> _pendingRequests = [];
-  final NumberFormat _currencyFormat = NumberFormat.currency(
-    locale: 'id_ID',
-    symbol: 'Rp ',
-    decimalDigits: 0,
-  );
+  int _currentIndex = 0;
 
-  @override
-  void initState() {
-    super.initState();
-    _loadData();
-  }
+  final List<String> months = const [
+    "Januari",
+    "Februari",
+    "Maret",
+    "April",
+    "Mei",
+    "Juni",
+    "Juli",
+    "Agustus",
+    "September",
+    "Oktober",
+    "November",
+    "Desember",
+  ];
 
-  Future<void> _loadData() async {
-    setState(() => _loading = true);
-    try {
-      // Load monthly budgets - gunakan 'procumon' sesuai dengan insert
-      final budgetResp = await _svc.selectAll(
-        AppConfig.token,
-        'procumon', // FIXED: Gunakan 'procumon' bukan AppConfig.project
-        'monthly_budgets',
-        AppConfig.appid,
-      );
-      print('Budget Response: $budgetResp'); // Debug
-      final budgetJson = json.decode(budgetResp);
-
-      // Handle response format: {"data": [...]} atau langsung [...]
-      List budgetData = [];
-      if (budgetJson is Map && budgetJson['data'] != null) {
-        budgetData = budgetJson['data'] as List;
-      } else if (budgetJson is List) {
-        budgetData = budgetJson;
-      }
-
-      if (budgetData.isNotEmpty) {
-        _budgets = budgetData
-            .map((d) => MonthlyBudgetsModel.fromJson(d))
-            .toList();
-        // Sort by month index
-        _budgets.sort(
-          (a, b) =>
-              int.parse(a.month_index).compareTo(int.parse(b.month_index)),
-        );
-      } else {
-        // Generate dummy data untuk demo jika database kosong
-        _budgets = _generateDummyBudgets();
-      }
-
-      // Load pending procurement requests - gunakan 'procumon' sesuai dengan insert
-      final requestResp = await _svc.selectAll(
-        AppConfig.token,
-        'procumon', // FIXED: Gunakan 'procumon' bukan AppConfig.project
-        'procurement_requests',
-        AppConfig.appid,
-      );
-      print('========== ADMIN LOAD REQUESTS ==========');
-      print('Request Response: $requestResp');
-      final requestJson = json.decode(requestResp);
-      print('Request JSON type: ${requestJson.runtimeType}');
-
-      // Handle response format: {"data": [...]} atau langsung [...]
-      List requestData = [];
-      if (requestJson is Map && requestJson['data'] != null) {
-        requestData = requestJson['data'] as List;
-        print('Data from Map["data"]: ${requestData.length} items');
-      } else if (requestJson is List) {
-        requestData = requestJson;
-        print('Data from direct List: ${requestData.length} items');
-      }
-
-      print('Total Request Data: ${requestData.length}');
-
-      // Debug: Print semua item
-      for (var item in requestData) {
-        print(
-          'Item: ${item['item_name']}, Status: ${item['status']}, Division: ${item['division_name']}',
-        );
-      }
-
-      if (requestData.isNotEmpty) {
-        // First, collect all processed items (Approved/Rejected) to exclude their pending versions
-        Set<String> processedItemKeys = {};
-        for (var item in requestData) {
-          String status = item['status']?.toLowerCase() ?? '';
-          if (status == 'approved' || status == 'rejected') {
-            // Create unique key from item_name + division + month + date
-            String key = '${item['item_name']}|${item['division_name']}|${item['month_name']}|${item['date']}';
-            processedItemKeys.add(key);
-            print('Processed item key: $key');
-          }
-        }
-
-        // Filter pending requests, excluding those that have been processed
-        _pendingRequests = requestData
-            .map((d) => ProcurementRequestsModel.fromJson(d))
-            .where((req) {
-              if (req.status.toLowerCase() != 'pending') return false;
-              
-              // Check if this pending item has a processed version
-              String key = '${req.item_name}|${req.division_name}|${req.month_name}|${req.date}';
-              if (processedItemKeys.contains(key)) {
-                print('Excluding pending item (already processed): ${req.item_name}');
-                return false;
-              }
-              return true;
-            })
-            .toList();
-        // Sort by newest first (assuming id is sequential)
-        _pendingRequests = _pendingRequests.reversed.toList();
-        print('Pending requests after filter: ${_pendingRequests.length}');
-      }
-      print('========== END ADMIN LOAD ==========');
-    } catch (e) {
-      print('Error loading data: $e');
-      // Jika error, tampilkan dummy budgets saja
-      if (_budgets.isEmpty) {
-        _budgets = _generateDummyBudgets();
-      }
-    } finally {
-      setState(() => _loading = false);
-    }
-  }
-
-  List<MonthlyBudgetsModel> _generateDummyBudgets() {
-    final months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni'];
-    return List.generate(6, (i) {
-      return MonthlyBudgetsModel(
-        id: 'dummy-${i + 1}',
-        fiscal_year_id: 'fy-2026',
-        month_name: months[i],
-        month_index: '${i + 1}',
-        total_revenue: '${(50 + (i * 10)) * 1000000}', // 50jt - 100jt
-        total_expense: '${(30 + (i * 5)) * 1000000}', // 30jt - 55jt
-      );
-    });
-  }
+  final List<String> divisions = const [
+    "IT",
+    "Marketing",
+    "Operations",
+    "Finance",
+    "HR",
+  ];
 
   void _showLogoutDialog() {
     showDialog(
@@ -176,13 +62,10 @@ class _AdminDashboardState extends State<AdminDashboard> {
           ),
           ElevatedButton(
             onPressed: () async {
-              // Clear SharedPreferences
               final prefs = await SharedPreferences.getInstance();
               await prefs.clear();
-              
               if (mounted) {
-                Navigator.pop(context); // Close dialog
-                // Navigate to login page and clear all routes
+                Navigator.pop(context);
                 Navigator.pushNamedAndRemoveUntil(
                   context,
                   '/login',
@@ -204,146 +87,528 @@ class _AdminDashboardState extends State<AdminDashboard> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[100],
-      appBar: AppBar(
-        title: const Text(
-          'Admin Dashboard',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        backgroundColor: Colors.blue,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.add_circle_outline),
-            onPressed: () {
-              Navigator.pushNamed(
-                context,
-                '/admin/input-revenue',
-              ).then((_) => _loadData());
-            },
-            tooltip: 'Input Pemasukan',
-          ),
-          IconButton(icon: const Icon(Icons.refresh), onPressed: _loadData),
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () => _showLogoutDialog(),
-            tooltip: 'Logout',
-          ),
+      backgroundColor: const Color(0xFFF5F7FA),
+      body: IndexedStack(
+        index: _currentIndex,
+        children: [
+          _AdminHomeTab(months: months, onShowLogout: _showLogoutDialog),
+          _AdminApprovalTab(months: months, divisions: divisions),
+          _AdminBudgetingTab(divisions: divisions),
         ],
       ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
-              onRefresh: _loadData,
-              child: SingleChildScrollView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Chart Section
-                    _buildChartCard(),
-                    const SizedBox(height: 24),
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, -5),
+            ),
+          ],
+        ),
+        child: BottomNavigationBar(
+          currentIndex: _currentIndex,
+          onTap: (index) => setState(() => _currentIndex = index),
+          type: BottomNavigationBarType.fixed,
+          backgroundColor: Colors.white,
+          selectedItemColor: Colors.blue,
+          unselectedItemColor: Colors.grey,
+          selectedFontSize: 12,
+          unselectedFontSize: 12,
+          elevation: 0,
+          items: const [
+            BottomNavigationBarItem(
+              icon: Icon(Icons.home_outlined),
+              activeIcon: Icon(Icons.home),
+              label: 'Home',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.fact_check_outlined),
+              activeIcon: Icon(Icons.fact_check),
+              label: 'Approval',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.account_balance_wallet_outlined),
+              activeIcon: Icon(Icons.account_balance_wallet),
+              label: 'Budgeting',
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
-                    // Pending Requests Section
-                    _buildPendingRequestsSection(),
-                  ],
+// ==================== HOME TAB ====================
+class _AdminHomeTab extends StatefulWidget {
+  final List<String> months;
+  final VoidCallback onShowLogout;
+
+  const _AdminHomeTab({required this.months, required this.onShowLogout});
+
+  @override
+  State<_AdminHomeTab> createState() => _AdminHomeTabState();
+}
+
+class _AdminHomeTabState extends State<_AdminHomeTab> {
+  final DataService _svc = DataService();
+  bool _isLoading = true;
+  String _selectedMonth = "";
+  List<MonthlyBudgetsModel> _budgets = [];
+  List<ProcurementRequestsModel> _approvedRequests = [];
+  final NumberFormat _currencyFormat = NumberFormat.currency(
+    locale: 'id_ID',
+    symbol: 'Rp ',
+    decimalDigits: 0,
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    int currentMonthIndex = DateTime.now().month - 1;
+    _selectedMonth = widget.months[currentMonthIndex];
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    if (!mounted) return;
+    setState(() => _isLoading = true);
+    try {
+      // Load monthly budgets
+      final budgetResp = await _svc.selectAll(
+        AppConfig.token,
+        'procumon',
+        'monthly_budgets',
+        AppConfig.appid,
+      );
+
+      List budgetData = [];
+      if (budgetResp != null && budgetResp.isNotEmpty) {
+        try {
+          final budgetJson = json.decode(budgetResp);
+          if (budgetJson is Map && budgetJson['data'] != null) {
+            budgetData = budgetJson['data'] as List;
+          } else if (budgetJson is List) {
+            budgetData = budgetJson;
+          }
+        } catch (e) {
+          print('Error parsing budget JSON: $e');
+        }
+      }
+
+      if (budgetData.isNotEmpty) {
+        _budgets = budgetData
+            .map(
+              (d) => MonthlyBudgetsModel.fromJson(
+                d as Map<String, dynamic>? ?? {},
+              ),
+            )
+            .toList();
+        _budgets.sort(
+          (a, b) =>
+              int.tryParse(
+                a.month_index,
+              )?.compareTo(int.tryParse(b.month_index) ?? 0) ??
+              0,
+        );
+      } else {
+        _budgets = _generateDummyBudgets();
+      }
+
+      // Load approved procurement requests for expense calculation
+      final requestResp = await _svc.selectAll(
+        AppConfig.token,
+        'procumon',
+        'procurement_requests',
+        AppConfig.appid,
+      );
+
+      List requestData = [];
+      if (requestResp != null && requestResp.isNotEmpty) {
+        try {
+          final requestJson = json.decode(requestResp);
+          if (requestJson is Map && requestJson['data'] != null) {
+            requestData = requestJson['data'] as List;
+          } else if (requestJson is List) {
+            requestData = requestJson;
+          }
+        } catch (e) {
+          print('Error parsing request JSON: $e');
+        }
+      }
+
+      _approvedRequests = [];
+      for (var d in requestData) {
+        try {
+          final req = ProcurementRequestsModel.fromJson(
+            d as Map<String, dynamic>? ?? {},
+          );
+          if (req.status.toLowerCase() == 'approved') {
+            _approvedRequests.add(req);
+          }
+        } catch (e) {
+          print('Error parsing request: $e');
+        }
+      }
+    } catch (e) {
+      print('Error loading data: $e');
+      if (_budgets.isEmpty) {
+        _budgets = _generateDummyBudgets();
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  List<MonthlyBudgetsModel> _generateDummyBudgets() {
+    return List.generate(12, (i) {
+      return MonthlyBudgetsModel(
+        id: 'dummy-${i + 1}',
+        fiscal_year_id: 'fy-2026',
+        month_name: widget.months[i],
+        month_index: '${i + 1}',
+        total_revenue: '${(50 + (i * 10)) * 1000000}',
+        total_expense: '${(30 + (i * 5)) * 1000000}',
+      );
+    });
+  }
+
+  MonthlyBudgetsModel? get _currentMonthBudget {
+    try {
+      return _budgets.firstWhere((b) => b.month_name == _selectedMonth);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  String _formatCurrency(int amount) {
+    if (amount >= 1000000000) {
+      return "${(amount / 1000000000).toStringAsFixed(1)}M";
+    } else if (amount >= 1000000) {
+      return "${(amount / 1000000).toStringAsFixed(0)}Jt";
+    } else if (amount >= 1000) {
+      return "${(amount / 1000).toStringAsFixed(0)}K";
+    }
+    return amount.toString();
+  }
+
+  // Calculate expense from approved requests for selected month
+  int get _expenseFromApproved {
+    return _approvedRequests
+        .where((req) => req.month_name == _selectedMonth)
+        .fold(
+          0,
+          (sum, req) =>
+              sum +
+              (int.tryParse(req.total_price) ??
+                  (double.tryParse(req.total_price)?.toInt() ?? 0)),
+        );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final budget = _currentMonthBudget;
+    final revenue = budget != null
+        ? int.tryParse(budget.total_revenue) ?? 0
+        : 0;
+    // Expense now comes from approved procurement requests
+    final expense = _expenseFromApproved;
+
+    return RefreshIndicator(
+      onRefresh: _loadData,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        child: Column(
+          children: [
+            // Header
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Container(
+                  height: 200,
+                  width: double.infinity,
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Colors.blue, Color(0xFF1E88E5)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.only(
+                      bottomLeft: Radius.circular(30),
+                      bottomRight: Radius.circular(30),
+                    ),
+                  ),
+                  child: SafeArea(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                "Admin Panel",
+                                style: TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              SizedBox(height: 5),
+                              Text(
+                                "ProcuMon",
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                          Row(
+                            children: [
+                              GestureDetector(
+                                onTap: () {
+                                  Navigator.pushNamed(
+                                    context,
+                                    '/admin/input-revenue',
+                                  ).then((_) => _loadData());
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.all(10),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.2),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(
+                                    Icons.add,
+                                    color: Colors.white,
+                                    size: 24,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              GestureDetector(
+                                onTap: widget.onShowLogout,
+                                child: Container(
+                                  padding: const EdgeInsets.all(10),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.2),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(
+                                    Icons.logout,
+                                    color: Colors.white,
+                                    size: 24,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
+
+                // Summary Card
+                Positioned(
+                  bottom: -45,
+                  left: 20,
+                  right: 20,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 16,
+                      horizontal: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(18),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.06),
+                          blurRadius: 15,
+                          offset: const Offset(0, 6),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      children: [
+                        _buildSummaryInfo(
+                          "Pemasukan",
+                          "${_formatCurrency(revenue)}",
+                          Icons.trending_up,
+                          Colors.green,
+                        ),
+                        Container(
+                          width: 1,
+                          height: 50,
+                          color: Colors.grey.shade200,
+                        ),
+                        _buildSummaryInfo(
+                          "Pengeluaran",
+                          "${_formatCurrency(expense)}",
+                          Icons.trending_down,
+                          Colors.red,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 65),
+
+            // Month Filter
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    "Pilih Bulan",
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    height: 48,
+                    child: ListView.builder(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: widget.months.length,
+                      itemBuilder: (context, index) {
+                        final month = widget.months[index];
+                        final isSelected = month == _selectedMonth;
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 10),
+                          child: GestureDetector(
+                            onTap: () => setState(() => _selectedMonth = month),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 20,
+                                vertical: 12,
+                              ),
+                              decoration: BoxDecoration(
+                                color: isSelected ? Colors.blue : Colors.white,
+                                borderRadius: BorderRadius.circular(25),
+                                border: Border.all(
+                                  color: isSelected
+                                      ? Colors.blue
+                                      : Colors.grey.shade300,
+                                ),
+                                boxShadow: isSelected
+                                    ? [
+                                        BoxShadow(
+                                          color: Colors.blue.withOpacity(0.3),
+                                          blurRadius: 8,
+                                          offset: const Offset(0, 3),
+                                        ),
+                                      ]
+                                    : null,
+                              ),
+                              child: Text(
+                                month,
+                                style: TextStyle(
+                                  color: isSelected
+                                      ? Colors.white
+                                      : Colors.grey.shade700,
+                                  fontWeight: isSelected
+                                      ? FontWeight.bold
+                                      : FontWeight.normal,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
               ),
             ),
+
+            const SizedBox(height: 24),
+
+            // Pie Chart Section
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "Ringkasan $_selectedMonth",
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  _isLoading
+                      ? const Center(child: CircularProgressIndicator())
+                      : _buildPieChartCard(revenue, expense),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 100),
+          ],
+        ),
+      ),
     );
   }
 
-  Widget _buildChartCard() {
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildSummaryInfo(
+    String label,
+    String value,
+    IconData icon,
+    Color color,
+  ) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Text(
-              'Pemasukan vs Pengeluaran',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [color.withOpacity(0.15), color.withOpacity(0.05)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: color.withOpacity(0.2), width: 1.5),
+              ),
+              child: Icon(icon, color: color, size: 24),
             ),
-            const SizedBox(height: 24),
-            SizedBox(
-              height: 300,
-              child: _budgets.isEmpty
-                  ? const Center(child: Text('Belum ada data anggaran'))
-                  : BarChart(
-                      BarChartData(
-                        alignment: BarChartAlignment.spaceAround,
-                        maxY: _getMaxY(),
-                        barTouchData: BarTouchData(
-                          enabled: true,
-                          touchTooltipData: BarTouchTooltipData(
-                            getTooltipItem: (group, groupIndex, rod, rodIndex) {
-                              final month = _budgets[groupIndex].month_name;
-                              final value = rod.toY;
-                              return BarTooltipItem(
-                                '$month\n${_currencyFormat.format(value)}',
-                                const TextStyle(color: Colors.white),
-                              );
-                            },
-                          ),
-                        ),
-                        titlesData: FlTitlesData(
-                          show: true,
-                          bottomTitles: AxisTitles(
-                            sideTitles: SideTitles(
-                              showTitles: true,
-                              getTitlesWidget: (value, meta) {
-                                if (value.toInt() < _budgets.length) {
-                                  final month =
-                                      _budgets[value.toInt()].month_name;
-                                  return Padding(
-                                    padding: const EdgeInsets.only(top: 8),
-                                    child: Text(
-                                      month.substring(0, 3),
-                                      style: const TextStyle(fontSize: 10),
-                                    ),
-                                  );
-                                }
-                                return const Text('');
-                              },
-                            ),
-                          ),
-                          leftTitles: AxisTitles(
-                            sideTitles: SideTitles(
-                              showTitles: true,
-                              reservedSize: 50,
-                              getTitlesWidget: (value, meta) {
-                                return Text(
-                                  '${(value / 1000000).toStringAsFixed(0)}jt',
-                                  style: const TextStyle(fontSize: 10),
-                                );
-                              },
-                            ),
-                          ),
-                          topTitles: const AxisTitles(
-                            sideTitles: SideTitles(showTitles: false),
-                          ),
-                          rightTitles: const AxisTitles(
-                            sideTitles: SideTitles(showTitles: false),
-                          ),
-                        ),
-                        borderData: FlBorderData(show: false),
-                        gridData: const FlGridData(show: true),
-                        barGroups: _buildBarGroups(),
-                      ),
-                    ),
-            ),
-            const SizedBox(height: 16),
-            // Legend di bawah chart
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
+            const SizedBox(width: 10),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                _buildLegendItem(Colors.green, 'Pemasukan'),
-                const SizedBox(width: 24),
-                _buildLegendItem(Colors.red, 'Pengeluaran'),
+                Text(
+                  value,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey.shade800,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Colors.grey.shade500,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
               ],
             ),
           ],
@@ -352,239 +617,513 @@ class _AdminDashboardState extends State<AdminDashboard> {
     );
   }
 
-  Widget _buildLegendItem(Color color, String label) {
-    return Row(
-      children: [
-        Container(
-          width: 16,
-          height: 16,
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: BorderRadius.circular(4),
-          ),
-        ),
-        const SizedBox(width: 4),
-        Text(label, style: const TextStyle(fontSize: 12)),
-      ],
-    );
-  }
+  Widget _buildPieChartCard(int revenue, int expense) {
+    final total = revenue + expense;
+    final revenuePercent = total > 0 ? (revenue / total * 100) : 0.0;
+    final expensePercent = total > 0 ? (expense / total * 100) : 0.0;
 
-  double _getMaxY() {
-    double max = 0;
-    for (var budget in _budgets) {
-      final revenue = double.tryParse(budget.total_revenue) ?? 0;
-      final expense = double.tryParse(budget.total_expense) ?? 0;
-      if (revenue > max) max = revenue;
-      if (expense > max) max = expense;
-    }
-    return max * 1.2; // Add 20% padding
-  }
-
-  List<BarChartGroupData> _buildBarGroups() {
-    return List.generate(_budgets.length, (index) {
-      final budget = _budgets[index];
-      final revenue = double.tryParse(budget.total_revenue) ?? 0;
-      final expense = double.tryParse(budget.total_expense) ?? 0;
-
-      return BarChartGroupData(
-        x: index,
-        barRods: [
-          BarChartRodData(
-            toY: revenue,
-            color: Colors.green,
-            width: 16,
-            borderRadius: const BorderRadius.only(
-              topLeft: Radius.circular(4),
-              topRight: Radius.circular(4),
-            ),
-          ),
-          BarChartRodData(
-            toY: expense,
-            color: Colors.red,
-            width: 16,
-            borderRadius: const BorderRadius.only(
-              topLeft: Radius.circular(4),
-              topRight: Radius.circular(4),
-            ),
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.1),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
           ),
         ],
-      );
-    });
-  }
-
-  Widget _buildPendingRequestsSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const Text(
-              'Pengajuan Menunggu Persetujuan',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            if (_pendingRequests.isNotEmpty)
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.orange,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  '${_pendingRequests.length}',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        _pendingRequests.isEmpty
-            ? Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(32),
-                  child: Center(
-                    child: Column(
-                      children: [
-                        Icon(
-                          Icons.check_circle_outline,
-                          size: 64,
-                          color: Colors.grey[400],
+      ),
+      child: Column(
+        children: [
+          SizedBox(
+            height: 200,
+            child: total == 0
+                ? const Center(child: Text("Belum ada data"))
+                : PieChart(
+                    PieChartData(
+                      sectionsSpace: 4,
+                      centerSpaceRadius: 50,
+                      sections: [
+                        PieChartSectionData(
+                          value: revenue.toDouble(),
+                          title: '${revenuePercent.toStringAsFixed(0)}%',
+                          color: Colors.green,
+                          radius: 60,
+                          titleStyle: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
                         ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'Tidak ada pengajuan yang menunggu',
-                          style: TextStyle(color: Colors.grey[600]),
+                        PieChartSectionData(
+                          value: expense.toDouble(),
+                          title: '${expensePercent.toStringAsFixed(0)}%',
+                          color: Colors.red,
+                          radius: 60,
+                          titleStyle: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
                         ),
                       ],
                     ),
                   ),
-                ),
-              )
-            : ListView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: _pendingRequests.length,
-                itemBuilder: (context, index) {
-                  final request = _pendingRequests[index];
-                  return _buildPendingRequestCard(request);
-                },
+          ),
+          const SizedBox(height: 20),
+          // Legend
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              _buildLegendItem(
+                Colors.green,
+                "Pemasukan",
+                _currencyFormat.format(revenue),
               ),
-      ],
+              _buildLegendItem(
+                Colors.red,
+                "Pengeluaran",
+                _currencyFormat.format(expense),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          // Sisa Budget
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.blue.shade50,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  "Sisa Anggaran:",
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+                Text(
+                  _currencyFormat.format(revenue - expense),
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: (revenue - expense) >= 0 ? Colors.green : Colors.red,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _buildPendingRequestCard(ProcurementRequestsModel request) {
+  Widget _buildLegendItem(Color color, String label, String value) {
+    return Column(
+      children: [
+        Row(
+          children: [
+            Container(
+              width: 14,
+              height: 14,
+              decoration: BoxDecoration(
+                color: color,
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+        ),
+      ],
+    );
+  }
+}
+
+// ==================== APPROVAL TAB ====================
+class _AdminApprovalTab extends StatefulWidget {
+  final List<String> months;
+  final List<String> divisions;
+
+  const _AdminApprovalTab({required this.months, required this.divisions});
+
+  @override
+  State<_AdminApprovalTab> createState() => _AdminApprovalTabState();
+}
+
+class _AdminApprovalTabState extends State<_AdminApprovalTab> {
+  final DataService _svc = DataService();
+  bool _isLoading = true;
+  String _selectedMonth = "";
+  String _selectedDivision = "";
+  List<ProcurementRequestsModel> _pendingRequests = [];
+  final NumberFormat _currencyFormat = NumberFormat.currency(
+    locale: 'id_ID',
+    symbol: 'Rp ',
+    decimalDigits: 0,
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    int currentMonthIndex = DateTime.now().month - 1;
+    _selectedMonth = widget.months[currentMonthIndex];
+    _selectedDivision = widget.divisions.first;
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    if (!mounted) return;
+    setState(() => _isLoading = true);
+    try {
+      final requestResp = await _svc.selectAll(
+        AppConfig.token,
+        'procumon',
+        'procurement_requests',
+        AppConfig.appid,
+      );
+
+      List requestData = [];
+      if (requestResp != null && requestResp.isNotEmpty) {
+        try {
+          final requestJson = json.decode(requestResp);
+          if (requestJson is Map && requestJson['data'] != null) {
+            requestData = requestJson['data'] as List;
+          } else if (requestJson is List) {
+            requestData = requestJson;
+          }
+        } catch (e) {
+          print('Error parsing JSON: $e');
+        }
+      }
+
+      // Collect processed items
+      Set<String> processedItemKeys = {};
+      for (var item in requestData) {
+        if (item == null) continue;
+        String status = (item['status'] ?? '').toString().toLowerCase();
+        if (status == 'approved' || status == 'rejected') {
+          String key =
+              '${item['item_name'] ?? ''}|${item['division_name'] ?? ''}|${item['month_name'] ?? ''}|${item['date'] ?? ''}';
+          processedItemKeys.add(key);
+        }
+      }
+
+      // Filter pending only
+      _pendingRequests = [];
+      for (var d in requestData) {
+        if (d == null) continue;
+        try {
+          final req = ProcurementRequestsModel.fromJson(
+            d as Map<String, dynamic>? ?? {},
+          );
+          if (req.status.toLowerCase() != 'pending') continue;
+          String key =
+              '${req.item_name}|${req.division_name}|${req.month_name}|${req.date}';
+          if (!processedItemKeys.contains(key)) {
+            _pendingRequests.add(req);
+          }
+        } catch (e) {
+          print('Error parsing request: $e');
+        }
+      }
+      _pendingRequests = _pendingRequests.reversed.toList();
+    } catch (e) {
+      print('Error loading data: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  List<ProcurementRequestsModel> get _filteredRequests {
+    return _pendingRequests.where((req) {
+      return req.month_name == _selectedMonth &&
+          req.division_name == _selectedDivision;
+    }).toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return RefreshIndicator(
+      onRefresh: _loadData,
+      child: Column(
+        children: [
+          // Header
+          Container(
+            width: double.infinity,
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Colors.blue, Color(0xFF1E88E5)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+            ),
+            child: SafeArea(
+              bottom: false,
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      "Approval Pengajuan",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      "${_filteredRequests.length} pengajuan menunggu",
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+
+          // Filters
+          Container(
+            padding: const EdgeInsets.all(16),
+            color: Colors.white,
+            child: Column(
+              children: [
+                // Month Filter
+                SizedBox(
+                  height: 40,
+                  child: ListView.builder(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: widget.months.length,
+                    itemBuilder: (context, index) {
+                      final month = widget.months[index];
+                      final isSelected = month == _selectedMonth;
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: GestureDetector(
+                          onTap: () => setState(() => _selectedMonth = month),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 8,
+                            ),
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? Colors.blue
+                                  : Colors.grey.shade100,
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(
+                              month,
+                              style: TextStyle(
+                                color: isSelected
+                                    ? Colors.white
+                                    : Colors.grey.shade700,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 12),
+                // Division Filter
+                SizedBox(
+                  height: 40,
+                  child: ListView.builder(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: widget.divisions.length,
+                    itemBuilder: (context, index) {
+                      final div = widget.divisions[index];
+                      final isSelected = div == _selectedDivision;
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: GestureDetector(
+                          onTap: () => setState(() => _selectedDivision = div),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 8,
+                            ),
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? Colors.orange
+                                  : Colors.grey.shade100,
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(
+                              div,
+                              style: TextStyle(
+                                color: isSelected
+                                    ? Colors.white
+                                    : Colors.grey.shade700,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // List
+          Expanded(
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _filteredRequests.isEmpty
+                ? _buildEmptyState()
+                : ListView.builder(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: _filteredRequests.length,
+                    itemBuilder: (context, index) =>
+                        _buildRequestCard(_filteredRequests[index]),
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.check_circle_outline,
+            size: 80,
+            color: Colors.grey.shade300,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            "Tidak ada pengajuan dari $_selectedDivision di bulan $_selectedMonth",
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.grey.shade600),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRequestCard(ProcurementRequestsModel request) {
     final totalPrice = double.tryParse(request.total_price) ?? 0;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: InkWell(
-        onTap: () {
-          Navigator.pushNamed(
-            context,
-            '/admin/approval',
-            arguments: request,
-          ).then((_) => _loadData());
-        },
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.orange[100],
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Text(
-                      'PENDING',
-                      style: TextStyle(
-                        color: Colors.orange,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12,
-                      ),
-                    ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
                   ),
-                  const Spacer(),
-                  Text(
-                    request.division_name,
-                    style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.shade100,
+                    borderRadius: BorderRadius.circular(8),
                   ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Text(
-                request.item_name,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Icon(Icons.shopping_cart, size: 16, color: Colors.grey[600]),
-                  const SizedBox(width: 4),
-                  Text(
-                    'Qty: ${request.quantity}',
-                    style: TextStyle(color: Colors.grey[600]),
-                  ),
-                  const SizedBox(width: 16),
-                  Icon(Icons.attach_money, size: 16, color: Colors.grey[600]),
-                  const SizedBox(width: 4),
-                  Text(
-                    _currencyFormat.format(totalPrice),
-                    style: const TextStyle(
+                  child: const Text(
+                    'PENDING',
+                    style: TextStyle(
+                      color: Colors.orange,
                       fontWeight: FontWeight.bold,
-                      color: Colors.blue,
+                      fontSize: 11,
                     ),
                   ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () => _handleReject(request),
-                      icon: const Icon(Icons.close, size: 18),
-                      label: const Text('Tolak'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.red,
-                        side: const BorderSide(color: Colors.red),
-                      ),
+                ),
+                const Spacer(),
+                Text(
+                  request.date,
+                  style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              request.item_name,
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Icon(
+                  Icons.shopping_cart_outlined,
+                  size: 16,
+                  color: Colors.grey.shade600,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  'Qty: ${request.quantity}',
+                  style: TextStyle(color: Colors.grey.shade600),
+                ),
+                const SizedBox(width: 16),
+                Icon(Icons.attach_money, size: 16, color: Colors.grey.shade600),
+                const SizedBox(width: 4),
+                Text(
+                  _currencyFormat.format(totalPrice),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.blue,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => _handleReject(request),
+                    icon: const Icon(Icons.close, size: 18),
+                    label: const Text('Tolak'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.red,
+                      side: const BorderSide(color: Colors.red),
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: () => _handleApprove(request),
-                      icon: const Icon(Icons.check, size: 18),
-                      label: const Text('Setujui'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green,
-                        foregroundColor: Colors.white,
-                      ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () => _handleApprove(request),
+                    icon: const Icon(Icons.check, size: 18),
+                    label: const Text('Setujui'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
                     ),
                   ),
-                ],
-              ),
-            ],
-          ),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );
@@ -597,6 +1136,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text('Setujui Pengajuan'),
         content: StatefulBuilder(
           builder: (context, setState) {
@@ -622,12 +1162,10 @@ class _AdminDashboardState extends State<AdminDashboard> {
                     IconButton(
                       icon: const Icon(Icons.remove_circle_outline),
                       onPressed: currentQty > 0
-                          ? () {
-                              setState(() {
-                                quantityController.text = (currentQty - 1)
-                                    .toString();
-                              });
-                            }
+                          ? () => setState(
+                              () => quantityController.text = (currentQty - 1)
+                                  .toString(),
+                            )
                           : null,
                     ),
                     Expanded(
@@ -648,12 +1186,10 @@ class _AdminDashboardState extends State<AdminDashboard> {
                     IconButton(
                       icon: const Icon(Icons.add_circle_outline),
                       onPressed: currentQty < int.parse(request.quantity)
-                          ? () {
-                              setState(() {
-                                quantityController.text = (currentQty + 1)
-                                    .toString();
-                              });
-                            }
+                          ? () => setState(
+                              () => quantityController.text = (currentQty + 1)
+                                  .toString(),
+                            )
                           : null,
                     ),
                   ],
@@ -661,7 +1197,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                 const SizedBox(height: 8),
                 Text(
                   'Diminta: ${request.quantity}',
-                  style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                  style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
                 ),
                 const SizedBox(height: 16),
                 Container(
@@ -711,7 +1247,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
 
     if (confirmed == true && mounted) {
       try {
-        // Validate approved quantity
         if (approvedQuantity == null || approvedQuantity! <= 0) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -722,24 +1257,13 @@ class _AdminDashboardState extends State<AdminDashboard> {
           return;
         }
 
-        // Calculate new total price based on approved quantity
         final unitPrice = double.tryParse(request.price) ?? 0;
         final newTotalPrice = approvedQuantity! * unitPrice;
 
-        print('Approving request ID: ${request.id}');
-        print(
-          'Approved quantity: $approvedQuantity, New total: $newTotalPrice',
-        );
-
-        // WORKAROUND: Karena API update tidak berfungsi, gunakan insert baru
-        // Data baru akan punya status Approved, data lama tetap Pending
-        // Filter di _loadData() akan exclude pending yang sudah ada versi processed
-        
-        // Step 1: Insert data baru dengan status Approved
-        final insertResult = await _svc.insertProcurementRequestsWithReason(
+        await _svc.insertProcurementRequestsWithReason(
           AppConfig.appid,
           request.monthly_budget_id,
-          request.user_id, // Keep original user_id
+          request.user_id,
           request.item_name,
           approvedQuantity.toString(),
           request.price,
@@ -749,49 +1273,18 @@ class _AdminDashboardState extends State<AdminDashboard> {
           request.date,
           request.month_name,
           request.imange_path,
-          '', // rejection_reason kosong untuk approved
+          '',
         );
-        print('Insert approved data result: $insertResult');
 
-        // Step 2: Coba soft delete data lama - jika gagal, filter di UI
-        final deleteResult = await _svc.updateId(
+        await _svc.updateId(
           'status',
-          'processed', // Mark as processed instead of deleted
+          'processed',
           AppConfig.token,
           'procumon',
           'procurement_requests',
           AppConfig.appid,
           request.id,
         );
-        print('Mark old data as processed: $deleteResult');
-
-        // Update monthly budget (kurangi saldo)
-        final budget = _budgets.firstWhere(
-          (b) => b.id == request.monthly_budget_id,
-          orElse: () => MonthlyBudgetsModel(
-            id: '',
-            fiscal_year_id: '',
-            month_name: '',
-            month_index: '',
-            total_revenue: '0',
-            total_expense: '0',
-          ),
-        );
-
-        if (budget.id.isNotEmpty) {
-          final currentExpense = double.tryParse(budget.total_expense) ?? 0;
-          final newExpense = currentExpense + newTotalPrice;
-
-          await _svc.updateId(
-            'total_expense',
-            newExpense.toString(),
-            AppConfig.token,
-            'procumon',
-            'monthly_budgets',
-            AppConfig.appid,
-            budget.id,
-          );
-        }
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -805,10 +1298,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Gagal menyetujui pengajuan: $e'),
-              backgroundColor: Colors.red,
-            ),
+            SnackBar(content: Text('Gagal: $e'), backgroundColor: Colors.red),
           );
         }
       }
@@ -821,6 +1311,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text('Tolak Pengajuan'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -873,17 +1364,10 @@ class _AdminDashboardState extends State<AdminDashboard> {
 
     if (confirmed == true && mounted) {
       try {
-        print('Rejecting request ID: ${request.id}');
-        final rejectionReason = reasonController.text.trim();
-
-        // WORKAROUND: Karena API update tidak berfungsi, gunakan insert baru
-        // Filter di _loadData() akan exclude pending yang sudah ada versi processed
-        
-        // Step 1: Insert data baru dengan status Rejected
-        final insertResult = await _svc.insertProcurementRequestsWithReason(
+        await _svc.insertProcurementRequestsWithReason(
           AppConfig.appid,
           request.monthly_budget_id,
-          request.user_id, // Keep original user_id
+          request.user_id,
           request.item_name,
           request.quantity,
           request.price,
@@ -893,12 +1377,10 @@ class _AdminDashboardState extends State<AdminDashboard> {
           request.date,
           request.month_name,
           request.imange_path,
-          rejectionReason,
+          reasonController.text.trim(),
         );
-        print('Insert rejected data result: $insertResult');
 
-        // Step 2: Coba soft delete data lama (update API might fail, filtering handles it)
-        final deleteResult = await _svc.updateId(
+        await _svc.updateId(
           'status',
           'processed',
           AppConfig.token,
@@ -907,7 +1389,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
           AppConfig.appid,
           request.id,
         );
-        print('Mark old data as processed: $deleteResult');
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -921,13 +1402,622 @@ class _AdminDashboardState extends State<AdminDashboard> {
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Gagal menolak pengajuan: $e'),
-              backgroundColor: Colors.red,
-            ),
+            SnackBar(content: Text('Gagal: $e'), backgroundColor: Colors.red),
           );
         }
       }
     }
+  }
+}
+
+// ==================== BUDGETING TAB ====================
+class _AdminBudgetingTab extends StatefulWidget {
+  final List<String> divisions;
+
+  const _AdminBudgetingTab({required this.divisions});
+
+  @override
+  State<_AdminBudgetingTab> createState() => _AdminBudgetingTabState();
+}
+
+class _AdminBudgetingTabState extends State<_AdminBudgetingTab> {
+  final DataService _svc = DataService();
+  bool _isLoading = true;
+  List<Map<String, dynamic>> _incomeList = [];
+  Map<String, int> _divisionBudgets = {};
+  final NumberFormat _currencyFormat = NumberFormat.currency(
+    locale: 'id_ID',
+    symbol: 'Rp ',
+    decimalDigits: 0,
+  );
+
+  // Controllers for new income
+  final TextEditingController _incomeSourceController = TextEditingController();
+  final TextEditingController _incomeAmountController = TextEditingController();
+
+  // Controllers for budget allocation
+  String _selectedDivision = "";
+  final TextEditingController _budgetAmountController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedDivision = widget.divisions.first;
+    _loadData();
+  }
+
+  @override
+  void dispose() {
+    _incomeSourceController.dispose();
+    _incomeAmountController.dispose();
+    _budgetAmountController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadData() async {
+    setState(() => _isLoading = true);
+    try {
+      // Load income data from API or use dummy
+      // For now using dummy data
+      _incomeList = [
+        {'source': 'Sponsorship A', 'amount': 50000000, 'date': '2026-01-05'},
+        {'source': 'Sponsorship B', 'amount': 30000000, 'date': '2026-01-10'},
+        {'source': 'Dana Investor', 'amount': 100000000, 'date': '2026-01-15'},
+      ];
+
+      // Load division budgets from API or use dummy
+      _divisionBudgets = {
+        'IT': 40000000,
+        'Marketing': 35000000,
+        'Operations': 25000000,
+        'Finance': 15000000,
+        'HR': 10000000,
+      };
+    } catch (e) {
+      print('Error loading data: $e');
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  int get _totalIncome =>
+      _incomeList.fold(0, (sum, item) => sum + (item['amount'] as int));
+  int get _totalAllocated =>
+      _divisionBudgets.values.fold(0, (sum, val) => sum + val);
+  int get _remainingBudget => _totalIncome - _totalAllocated;
+
+  String _formatNumber(String value) {
+    if (value.isEmpty) return '';
+    value = value.replaceAll('.', '');
+    final number = int.tryParse(value);
+    if (number == null) return value;
+    return number.toString().replaceAllMapped(
+      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+      (Match m) => '${m[1]}.',
+    );
+  }
+
+  void _addIncome() {
+    if (_incomeSourceController.text.isEmpty ||
+        _incomeAmountController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Lengkapi data pemasukan'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    final amount =
+        int.tryParse(_incomeAmountController.text.replaceAll('.', '')) ?? 0;
+    if (amount <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Jumlah tidak valid'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _incomeList.add({
+        'source': _incomeSourceController.text,
+        'amount': amount,
+        'date': DateFormat('yyyy-MM-dd').format(DateTime.now()),
+      });
+      _incomeSourceController.clear();
+      _incomeAmountController.clear();
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Pemasukan berhasil ditambahkan'),
+        backgroundColor: Colors.green,
+      ),
+    );
+  }
+
+  void _allocateBudget() {
+    final amount =
+        int.tryParse(_budgetAmountController.text.replaceAll('.', '')) ?? 0;
+    if (amount <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Jumlah tidak valid'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    if (amount >
+        _remainingBudget + (_divisionBudgets[_selectedDivision] ?? 0)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Jumlah melebihi sisa anggaran'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _divisionBudgets[_selectedDivision] = amount;
+      _budgetAmountController.clear();
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Budget $_selectedDivision berhasil diupdate'),
+        backgroundColor: Colors.green,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return RefreshIndicator(
+      onRefresh: _loadData,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        child: Column(
+          children: [
+            // Header
+            Container(
+              width: double.infinity,
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Colors.blue, Color(0xFF1E88E5)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+              ),
+              child: SafeArea(
+                bottom: false,
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        "Budgeting",
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        "Kelola anggaran dan budget divisi",
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+
+            // Summary Card
+            Container(
+              margin: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.grey.withOpacity(0.1),
+                    blurRadius: 10,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      _buildBudgetSummaryItem(
+                        "Total Pemasukan",
+                        _currencyFormat.format(_totalIncome),
+                        Colors.green,
+                      ),
+                      _buildBudgetSummaryItem(
+                        "Total Dialokasi",
+                        _currencyFormat.format(_totalAllocated),
+                        Colors.orange,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: _remainingBudget >= 0
+                          ? Colors.blue.shade50
+                          : Colors.red.shade50,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          "Sisa Anggaran:",
+                          style: TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        Text(
+                          _currencyFormat.format(_remainingBudget),
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: _remainingBudget >= 0
+                                ? Colors.blue
+                                : Colors.red,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Income Section
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    "Pemasukan",
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Add Income Form
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.grey.withOpacity(0.1),
+                          blurRadius: 10,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      children: [
+                        TextField(
+                          controller: _incomeSourceController,
+                          decoration: InputDecoration(
+                            labelText: 'Sumber Pemasukan',
+                            hintText: 'Contoh: Sponsorship, Investor',
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            prefixIcon: const Icon(Icons.source),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: _incomeAmountController,
+                          keyboardType: TextInputType.number,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                          ],
+                          decoration: InputDecoration(
+                            labelText: 'Jumlah',
+                            prefixText: 'Rp ',
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            prefixIcon: const Icon(Icons.attach_money),
+                          ),
+                          onChanged: (value) {
+                            final formatted = _formatNumber(value);
+                            if (formatted != value) {
+                              _incomeAmountController.value = TextEditingValue(
+                                text: formatted,
+                                selection: TextSelection.collapsed(
+                                  offset: formatted.length,
+                                ),
+                              );
+                            }
+                          },
+                        ),
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            onPressed: _addIncome,
+                            icon: const Icon(Icons.add),
+                            label: const Text('Tambah Pemasukan'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.green,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // Income List
+                  ..._incomeList
+                      .map(
+                        (item) => Container(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.grey.shade200),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: Colors.green.shade50,
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Icon(
+                                  Icons.arrow_downward,
+                                  color: Colors.green.shade600,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      item['source'],
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    Text(
+                                      item['date'],
+                                      style: TextStyle(
+                                        color: Colors.grey.shade600,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Text(
+                                _currencyFormat.format(item['amount']),
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.green,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                      .toList(),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 24),
+
+            // Budget Allocation Section
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    "Alokasi Budget Divisi",
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Allocation Form
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.grey.withOpacity(0.1),
+                          blurRadius: 10,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      children: [
+                        DropdownButtonFormField<String>(
+                          value: _selectedDivision,
+                          decoration: InputDecoration(
+                            labelText: 'Pilih Divisi',
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            prefixIcon: const Icon(Icons.business),
+                          ),
+                          items: widget.divisions
+                              .map(
+                                (div) => DropdownMenuItem(
+                                  value: div,
+                                  child: Text(div),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: (val) {
+                            if (val != null) {
+                              setState(() {
+                                _selectedDivision = val;
+                                _budgetAmountController.text = _formatNumber(
+                                  _divisionBudgets[val]?.toString() ?? '0',
+                                );
+                              });
+                            }
+                          },
+                        ),
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: _budgetAmountController,
+                          keyboardType: TextInputType.number,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                          ],
+                          decoration: InputDecoration(
+                            labelText: 'Jumlah Budget',
+                            prefixText: 'Rp ',
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            prefixIcon: const Icon(
+                              Icons.account_balance_wallet,
+                            ),
+                          ),
+                          onChanged: (value) {
+                            final formatted = _formatNumber(value);
+                            if (formatted != value) {
+                              _budgetAmountController.value = TextEditingValue(
+                                text: formatted,
+                                selection: TextSelection.collapsed(
+                                  offset: formatted.length,
+                                ),
+                              );
+                            }
+                          },
+                        ),
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            onPressed: _allocateBudget,
+                            icon: const Icon(Icons.save),
+                            label: const Text('Simpan Alokasi'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.blue,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // Division Budget List
+                  ...widget.divisions
+                      .map(
+                        (div) => Container(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.grey.shade200),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: Colors.blue.shade50,
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Icon(
+                                  Icons.business,
+                                  color: Colors.blue.shade600,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  div,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                              Text(
+                                _currencyFormat.format(
+                                  _divisionBudgets[div] ?? 0,
+                                ),
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.blue,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                      .toList(),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 100),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBudgetSummaryItem(String label, String value, Color color) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: color,
+          ),
+        ),
+      ],
+    );
   }
 }
