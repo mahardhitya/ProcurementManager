@@ -8,6 +8,9 @@ import 'package:procurement/core/restapi.dart';
 import 'package:procurement/models/monthly_budgets_model.dart';
 import 'package:procurement/models/procurement_requests_model.dart';
 import 'package:intl/intl.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
 
 class AdminDashboard extends StatefulWidget {
   const AdminDashboard({super.key});
@@ -157,6 +160,8 @@ class _AdminHomeTabState extends State<_AdminHomeTab> {
   String _selectedMonth = "";
   List<MonthlyBudgetsModel> _budgets = [];
   List<ProcurementRequestsModel> _approvedRequests = [];
+  List<ProcurementRequestsModel> _allRequests =
+      []; // All requests for PDF export
   final NumberFormat _currencyFormat = NumberFormat.currency(
     locale: 'id_ID',
     symbol: 'Rp ',
@@ -239,11 +244,13 @@ class _AdminHomeTabState extends State<_AdminHomeTab> {
       }
 
       _approvedRequests = [];
+      _allRequests = [];
       for (var d in requestData) {
         try {
           final req = ProcurementRequestsModel.fromJson(
             d as Map<String, dynamic>? ?? {},
           );
+          _allRequests.add(req); // Add to all requests
           if (req.status.toLowerCase() == 'approved') {
             _approvedRequests.add(req);
           }
@@ -555,7 +562,37 @@ class _AdminHomeTabState extends State<_AdminHomeTab> {
               ),
             ),
 
-            const SizedBox(height: 100),
+            const SizedBox(height: 24),
+
+            // Export PDF Button
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: _isLoading ? null : _exportToPdf,
+                  icon: const Icon(Icons.picture_as_pdf, color: Colors.white),
+                  label: const Text(
+                    'Export Laporan ke PDF',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red.shade600,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    elevation: 2,
+                  ),
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 24),
           ],
         ),
       ),
@@ -747,6 +784,432 @@ class _AdminHomeTabState extends State<_AdminHomeTab> {
         ),
       ],
     );
+  }
+
+  // PDF Export Functionality
+  Future<void> _exportToPdf() async {
+    // Show loading dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      final budget = _currentMonthBudget;
+      final revenue = budget != null
+          ? int.tryParse(budget.total_revenue) ?? 0
+          : 0;
+      final expense = _expenseFromApproved;
+      final sisaAnggaran = revenue - expense;
+
+      // Get requests for selected month - safe copy to avoid web issues
+      final List<ProcurementRequestsModel> monthRequests = _getRequestsForMonth(
+        _selectedMonth,
+      );
+
+      final pdf = pw.Document();
+
+      pdf.addPage(
+        pw.MultiPage(
+          pageFormat: PdfPageFormat.a4,
+          margin: const pw.EdgeInsets.all(32),
+          build: (pw.Context context) {
+            return [
+              // Header
+              pw.Container(
+                width: double.infinity,
+                padding: const pw.EdgeInsets.all(16),
+                decoration: pw.BoxDecoration(
+                  color: PdfColors.blue,
+                  borderRadius: pw.BorderRadius.circular(8),
+                ),
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.center,
+                  children: [
+                    pw.Text(
+                      'LAPORAN PROCUREMENT',
+                      style: pw.TextStyle(
+                        fontSize: 20,
+                        fontWeight: pw.FontWeight.bold,
+                        color: PdfColors.white,
+                      ),
+                    ),
+                    pw.SizedBox(height: 4),
+                    pw.Text(
+                      'Bulan $_selectedMonth ${DateTime.now().year}',
+                      style: const pw.TextStyle(
+                        fontSize: 14,
+                        color: PdfColors.white,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              pw.SizedBox(height: 24),
+
+              // Summary Section
+              pw.Text(
+                'RINGKASAN ANGGARAN',
+                style: pw.TextStyle(
+                  fontSize: 16,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+              pw.SizedBox(height: 12),
+              pw.Container(
+                padding: const pw.EdgeInsets.all(16),
+                decoration: pw.BoxDecoration(
+                  border: pw.Border.all(color: PdfColors.grey300),
+                  borderRadius: pw.BorderRadius.circular(8),
+                ),
+                child: pw.Column(
+                  children: [
+                    _buildPdfSummaryRow(
+                      'Total Pemasukan',
+                      _currencyFormat.format(revenue),
+                      PdfColors.green,
+                    ),
+                    pw.Divider(color: PdfColors.grey300),
+                    _buildPdfSummaryRow(
+                      'Total Pengeluaran',
+                      _currencyFormat.format(expense),
+                      PdfColors.red,
+                    ),
+                    pw.Divider(color: PdfColors.grey300),
+                    _buildPdfSummaryRow(
+                      'Sisa Anggaran',
+                      _currencyFormat.format(sisaAnggaran),
+                      sisaAnggaran >= 0 ? PdfColors.green : PdfColors.red,
+                    ),
+                  ],
+                ),
+              ),
+              pw.SizedBox(height: 24),
+
+              // Items Table
+              pw.Text(
+                'DAFTAR PENGAJUAN BARANG',
+                style: pw.TextStyle(
+                  fontSize: 16,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+              pw.SizedBox(height: 12),
+
+              if (monthRequests.length == 0)
+                pw.Container(
+                  padding: const pw.EdgeInsets.all(16),
+                  decoration: pw.BoxDecoration(
+                    border: pw.Border.all(color: PdfColors.grey300),
+                    borderRadius: pw.BorderRadius.circular(8),
+                  ),
+                  child: pw.Center(
+                    child: pw.Text(
+                      'Tidak ada data pengajuan untuk bulan ini',
+                      style: const pw.TextStyle(color: PdfColors.grey),
+                    ),
+                  ),
+                )
+              else
+                pw.Table(
+                  border: pw.TableBorder.all(color: PdfColors.grey400),
+                  columnWidths: {
+                    0: const pw.FlexColumnWidth(0.5),
+                    1: const pw.FlexColumnWidth(2),
+                    2: const pw.FlexColumnWidth(1),
+                    3: const pw.FlexColumnWidth(1.5),
+                    4: const pw.FlexColumnWidth(1.5),
+                    5: const pw.FlexColumnWidth(1.2),
+                  },
+                  children: [
+                    // Header Row
+                    pw.TableRow(
+                      decoration: const pw.BoxDecoration(
+                        color: PdfColors.blue100,
+                      ),
+                      children: [
+                        _buildPdfTableHeader('No'),
+                        _buildPdfTableHeader('Nama Barang'),
+                        _buildPdfTableHeader('Qty'),
+                        _buildPdfTableHeader('Harga'),
+                        _buildPdfTableHeader('Total'),
+                        _buildPdfTableHeader('Status'),
+                      ],
+                    ),
+                    // Data Rows - using for loop to avoid web issues
+                    ..._buildPdfTableRows(monthRequests),
+                  ],
+                ),
+
+              pw.SizedBox(height: 24),
+
+              // Status Summary
+              pw.Text(
+                'RINGKASAN STATUS',
+                style: pw.TextStyle(
+                  fontSize: 16,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+              pw.SizedBox(height: 12),
+              pw.Container(
+                padding: const pw.EdgeInsets.all(16),
+                decoration: pw.BoxDecoration(
+                  border: pw.Border.all(color: PdfColors.grey300),
+                  borderRadius: pw.BorderRadius.circular(8),
+                ),
+                child: pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
+                  children: [
+                    _buildPdfStatusSummary(
+                      'Disetujui',
+                      _countByStatus(monthRequests, 'approved'),
+                      PdfColors.green,
+                    ),
+                    _buildPdfStatusSummary(
+                      'Ditolak',
+                      _countByStatus(monthRequests, 'rejected'),
+                      PdfColors.red,
+                    ),
+                    _buildPdfStatusSummary(
+                      'Pending',
+                      _countByStatus(monthRequests, 'pending'),
+                      PdfColors.orange,
+                    ),
+                  ],
+                ),
+              ),
+
+              pw.SizedBox(height: 32),
+
+              // Footer
+              pw.Container(
+                width: double.infinity,
+                padding: const pw.EdgeInsets.only(top: 16),
+                decoration: const pw.BoxDecoration(
+                  border: pw.Border(
+                    top: pw.BorderSide(color: PdfColors.grey300),
+                  ),
+                ),
+                child: pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Text(
+                      'Dicetak pada: ${DateFormat('dd MMMM yyyy, HH:mm', 'id_ID').format(DateTime.now())}',
+                      style: const pw.TextStyle(
+                        fontSize: 10,
+                        color: PdfColors.grey,
+                      ),
+                    ),
+                    pw.Text(
+                      'ProcuMon - Procurement Manager',
+                      style: const pw.TextStyle(
+                        fontSize: 10,
+                        color: PdfColors.grey,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ];
+          },
+        ),
+      );
+
+      // Close loading dialog
+      if (mounted) Navigator.pop(context);
+
+      // Show print/share dialog
+      await Printing.layoutPdf(
+        onLayout: (PdfPageFormat format) async => pdf.save(),
+        name: 'Laporan_Procurement_$_selectedMonth.pdf',
+      );
+    } catch (e) {
+      // Close loading dialog
+      if (mounted) Navigator.pop(context);
+
+      // Show error
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal membuat PDF: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  pw.Widget _buildPdfSummaryRow(String label, String value, PdfColor color) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.symmetric(vertical: 8),
+      child: pw.Row(
+        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+        children: [
+          pw.Text(label, style: const pw.TextStyle(fontSize: 12)),
+          pw.Text(
+            value,
+            style: pw.TextStyle(
+              fontSize: 14,
+              fontWeight: pw.FontWeight.bold,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  pw.Widget _buildPdfTableHeader(String text) {
+    return pw.Container(
+      padding: const pw.EdgeInsets.all(8),
+      child: pw.Text(
+        text,
+        style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold),
+        textAlign: pw.TextAlign.center,
+      ),
+    );
+  }
+
+  pw.Widget _buildPdfTableCell(String text) {
+    return pw.Container(
+      padding: const pw.EdgeInsets.all(8),
+      child: pw.Text(
+        text,
+        style: const pw.TextStyle(fontSize: 9),
+        textAlign: pw.TextAlign.center,
+      ),
+    );
+  }
+
+  pw.Widget _buildPdfStatusCell(String status) {
+    PdfColor bgColor;
+    PdfColor textColor = PdfColors.white;
+    String displayText;
+
+    switch (status.toLowerCase()) {
+      case 'approved':
+        bgColor = PdfColors.green;
+        displayText = 'Disetujui';
+        break;
+      case 'rejected':
+        bgColor = PdfColors.red;
+        displayText = 'Ditolak';
+        break;
+      default:
+        bgColor = PdfColors.orange;
+        displayText = 'Pending';
+    }
+
+    return pw.Container(
+      padding: const pw.EdgeInsets.all(6),
+      child: pw.Container(
+        padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+        decoration: pw.BoxDecoration(
+          color: bgColor,
+          borderRadius: pw.BorderRadius.circular(4),
+        ),
+        child: pw.Text(
+          displayText,
+          style: pw.TextStyle(
+            fontSize: 8,
+            fontWeight: pw.FontWeight.bold,
+            color: textColor,
+          ),
+          textAlign: pw.TextAlign.center,
+        ),
+      ),
+    );
+  }
+
+  pw.Widget _buildPdfStatusSummary(String label, int count, PdfColor color) {
+    return pw.Column(
+      children: [
+        pw.Container(
+          padding: const pw.EdgeInsets.all(12),
+          decoration: pw.BoxDecoration(
+            color: color,
+            borderRadius: pw.BorderRadius.circular(8),
+          ),
+          child: pw.Text(
+            '$count',
+            style: pw.TextStyle(
+              fontSize: 20,
+              fontWeight: pw.FontWeight.bold,
+              color: PdfColors.white,
+            ),
+          ),
+        ),
+        pw.SizedBox(height: 4),
+        pw.Text(label, style: const pw.TextStyle(fontSize: 10)),
+      ],
+    );
+  }
+
+  // Helper method to count requests by status (avoids .where() issues on web)
+  int _countByStatus(List<ProcurementRequestsModel> requests, String status) {
+    int count = 0;
+    try {
+      final int len = requests.length;
+      for (int i = 0; i < len; i++) {
+        if (requests[i].status.toLowerCase() == status) {
+          count++;
+        }
+      }
+    } catch (e) {
+      print('Error counting status: $e');
+    }
+    return count;
+  }
+
+  // Helper method to build PDF table rows (avoids .map() issues on web)
+  List<pw.TableRow> _buildPdfTableRows(
+    List<ProcurementRequestsModel> requests,
+  ) {
+    List<pw.TableRow> rows = [];
+    try {
+      final int len = requests.length;
+      for (int i = 0; i < len; i++) {
+        final req = requests[i];
+        rows.add(
+          pw.TableRow(
+            children: [
+              _buildPdfTableCell('${i + 1}'),
+              _buildPdfTableCell(req.item_name),
+              _buildPdfTableCell(req.quantity),
+              _buildPdfTableCell(
+                _currencyFormat.format(int.tryParse(req.price) ?? 0),
+              ),
+              _buildPdfTableCell(
+                _currencyFormat.format(int.tryParse(req.total_price) ?? 0),
+              ),
+              _buildPdfStatusCell(req.status),
+            ],
+          ),
+        );
+      }
+    } catch (e) {
+      print('Error building table rows: $e');
+    }
+    return rows;
+  }
+
+  // Helper method to get requests for a specific month (avoids iteration issues on web)
+  List<ProcurementRequestsModel> _getRequestsForMonth(String month) {
+    final List<ProcurementRequestsModel> result = [];
+    try {
+      final int len = _allRequests.length;
+      for (int i = 0; i < len; i++) {
+        final req = _allRequests[i];
+        if (req.month_name == month) {
+          result.add(req);
+        }
+      }
+    } catch (e) {
+      print('Error getting requests for month: $e');
+    }
+    return result;
   }
 }
 
@@ -1993,7 +2456,7 @@ class _AdminBudgetingTabState extends State<_AdminBudgetingTab> {
               ),
             ),
 
-            const SizedBox(height: 100),
+            const SizedBox(height: 24),
           ],
         ),
       ),
