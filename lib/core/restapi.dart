@@ -837,16 +837,21 @@ class DataService {
         // Check if API returned success
         try {
           final jsonResp = json.decode(response.body);
-          if (jsonResp['status'] == 1) {
+          print('updateId parsed status: ${jsonResp['status']}');
+          // GoCloud return status as integer 1 for success
+          if (jsonResp['status'] == 1 || jsonResp['status'] == '1') {
+            print('updateId success!');
             return true;
           } else {
             print('updateId API error: ${jsonResp['message']}');
             return false;
           }
         } catch (e) {
-          return true; // Assume success if can't parse
+          print('updateId parse error: $e');
+          return true; // Assume success if can't parse but status 200
         }
       } else {
+        print('updateId HTTP error: ${response.statusCode}');
         return false;
       }
     } catch (e) {

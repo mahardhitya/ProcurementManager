@@ -302,18 +302,81 @@ class _HomeTabState extends State<_HomeTab> {
     }
   }
 
-  // Load budget yang dialokasikan admin untuk divisi ini (dummy data)
+  // Load budget yang dialokasikan admin untuk divisi ini
   Future<void> _loadDivisionBudget() async {
-    // Dummy data budget per divisi
-    Map<String, int> divisionBudgets = {
-      'IT': 40000000,
-      'Marketing': 35000000,
-      'Operations': 25000000,
-      'Finance': 15000000,
-      'HR': 10000000,
-    };
+    try {
+      // Load dari API
+      String response = await _dataService.selectAll(
+        AppConfig.token,
+        'procumon',
+        'division_budgets',
+        AppConfig.appid,
+      );
 
-    _divisionBudget = divisionBudgets[widget.userDivision] ?? 0;
+      if (response.isEmpty || response == '[]') {
+        // Jika tidak ada data dari API, gunakan dummy data
+        Map<String, int> divisionBudgets = {
+          'IT': 40000000,
+          'Marketing': 35000000,
+          'Operations': 25000000,
+          'Finance': 15000000,
+          'HR': 10000000,
+        };
+        _divisionBudget = divisionBudgets[widget.userDivision] ?? 0;
+        return;
+      }
+
+      var jsonResponse = json.decode(response);
+      List allBudgetData = [];
+
+      if (jsonResponse is Map && jsonResponse['data'] != null) {
+        allBudgetData = jsonResponse['data'] as List;
+      } else if (jsonResponse is List) {
+        allBudgetData = jsonResponse;
+      }
+
+      // Filter by division name dan ambil budget terbaru
+      int totalBudget = 0;
+      for (var budget in allBudgetData) {
+        if (budget == null) continue;
+
+        String budgetDivision = (budget['division_name'] ?? '').toString();
+
+        if (budgetDivision == widget.userDivision) {
+          int amount =
+              int.tryParse((budget['allocated_budget'] ?? '0').toString()) ?? 0;
+          // Ambil yang terakhir (yang terbesar) atau jumlahkan semua
+          if (amount > totalBudget) {
+            totalBudget = amount; // Ambil yang terbesar
+          }
+        }
+      }
+
+      if (totalBudget > 0) {
+        _divisionBudget = totalBudget;
+      } else {
+        // Fallback ke dummy data jika tidak ada di API
+        Map<String, int> divisionBudgets = {
+          'IT': 40000000,
+          'Marketing': 35000000,
+          'Operations': 25000000,
+          'Finance': 15000000,
+          'HR': 10000000,
+        };
+        _divisionBudget = divisionBudgets[widget.userDivision] ?? 0;
+      }
+    } catch (e) {
+      print('Error loading division budget: $e');
+      // Jika error, gunakan dummy data
+      Map<String, int> divisionBudgets = {
+        'IT': 40000000,
+        'Marketing': 35000000,
+        'Operations': 25000000,
+        'Finance': 15000000,
+        'HR': 10000000,
+      };
+      _divisionBudget = divisionBudgets[widget.userDivision] ?? 0;
+    }
   }
 
   // Get requests filtered by selected month
@@ -581,6 +644,67 @@ class _HomeTabState extends State<_HomeTab> {
                                         fontWeight: FontWeight.w500,
                                       ),
                                       overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  // Refresh Button
+                                  GestureDetector(
+                                    onTap: () async {
+                                      // Show loading snackbar
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        const SnackBar(
+                                          content: Row(
+                                            children: [
+                                              SizedBox(
+                                                width: 16,
+                                                height: 16,
+                                                child: CircularProgressIndicator(
+                                                  strokeWidth: 2,
+                                                  valueColor:
+                                                      AlwaysStoppedAnimation<
+                                                        Color
+                                                      >(Colors.white),
+                                                ),
+                                              ),
+                                              SizedBox(width: 12),
+                                              Text("Memuat ulang budget..."),
+                                            ],
+                                          ),
+                                          duration: Duration(seconds: 1),
+                                        ),
+                                      );
+
+                                      // Reload budget
+                                      await _loadDivisionBudget();
+                                      setState(() {});
+
+                                      // Show success message
+                                      if (mounted) {
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          const SnackBar(
+                                            content: Text(
+                                              "Budget berhasil diperbarui",
+                                            ),
+                                            backgroundColor: Colors.green,
+                                            duration: Duration(seconds: 2),
+                                          ),
+                                        );
+                                      }
+                                    },
+                                    child: Container(
+                                      padding: const EdgeInsets.all(4),
+                                      decoration: BoxDecoration(
+                                        color: Colors.grey.shade100,
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: Icon(
+                                        Icons.refresh,
+                                        size: 14,
+                                        color: Colors.grey.shade600,
+                                      ),
                                     ),
                                   ),
                                 ],
@@ -1083,6 +1207,7 @@ class _StatusTabState extends State<_StatusTab> {
             !isPendingWithProcessedVersion) {
           filteredRequests.add({
             'id': item['id'] ?? item['_id'] ?? '',
+            '_id': item['_id'] ?? item['id'] ?? '',
             'item_name': item['item_name'] ?? 'Unknown',
             'quantity': int.tryParse(item['quantity']?.toString() ?? '0') ?? 0,
             'price': int.tryParse(item['price']?.toString() ?? '0') ?? 0,
@@ -1565,6 +1690,19 @@ class _StatusTabState extends State<_StatusTab> {
   }
 
   void _showEditDialog(Map<String, dynamic> item) {
+    // Cek apakah masih pending
+    if (item['status'] != 'Pending') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            "Hanya pengajuan dengan status Pending yang bisa diedit",
+          ),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
     final TextEditingController nameController = TextEditingController(
       text: item['item_name'],
     );
@@ -1628,57 +1766,138 @@ class _StatusTabState extends State<_StatusTab> {
                 return;
               }
 
+              // Simpan ScaffoldMessengerState SEBELUM tutup dialog
+              final scaffoldMessenger = ScaffoldMessenger.of(context);
+
               Navigator.pop(context);
 
+              // Show loading
+              scaffoldMessenger.showSnackBar(
+                const SnackBar(
+                  content: Row(
+                    children: [
+                      SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            Colors.white,
+                          ),
+                        ),
+                      ),
+                      SizedBox(width: 16),
+                      Text("Memperbarui pengajuan..."),
+                    ],
+                  ),
+                  duration: Duration(seconds: 2),
+                ),
+              );
+
               try {
-                await _dataService.updateId(
+                int newTotalPrice = newQuantity * (item['price'] as int);
+
+                print('=== EDIT DEBUG ===');
+                print('Item Full Data: $item');
+                print('Item ID: ${item['id']}');
+                print('Item _ID: ${item['_id']}');
+                print('Old Name: ${item['item_name']}');
+                print('Old Quantity: ${item['quantity']}');
+                print('New Name: $newName');
+                print('New Quantity: $newQuantity');
+                print('New Total Price: $newTotalPrice');
+
+                // Update menggunakan _id yang spesifik
+                bool updated1 = false;
+                bool updated2 = false;
+                bool updated3 = false;
+
+                // Gunakan updateId dengan _id dari item
+                print('\n--- Updating with _id: ${item['_id']} ---');
+
+                updated1 = await _dataService.updateId(
                   'item_name',
                   newName,
                   AppConfig.token,
                   'procumon',
                   'procurement_requests',
                   AppConfig.appid,
-                  item['id'],
+                  item['_id'].toString(),
                 );
-                await _dataService.updateId(
+                print('Item name result: $updated1');
+                await Future.delayed(const Duration(milliseconds: 500));
+
+                updated2 = await _dataService.updateId(
                   'quantity',
                   newQuantity.toString(),
                   AppConfig.token,
                   'procumon',
                   'procurement_requests',
                   AppConfig.appid,
-                  item['id'],
+                  item['_id'].toString(),
                 );
+                print('Quantity result: $updated2');
+                await Future.delayed(const Duration(milliseconds: 500));
 
-                int newTotalPrice = newQuantity * (item['price'] as int);
-                await _dataService.updateId(
+                updated3 = await _dataService.updateId(
                   'total_price',
                   newTotalPrice.toString(),
                   AppConfig.token,
                   'procumon',
                   'procurement_requests',
                   AppConfig.appid,
-                  item['id'],
+                  item['_id'].toString(),
+                );
+                print('Total price result: $updated3');
+
+                print(
+                  'All API updates completed: item_name=$updated1, quantity=$updated2, total_price=$updated3',
                 );
 
-                _loadData();
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
+                // Tunggu lebih lama agar server benar-benar update
+                print('\n--- Waiting for server to sync ---');
+                await Future.delayed(const Duration(seconds: 3));
+
+                // Reload data dari server
+                print('--- Reloading data from server ---');
+                setState(() {
+                  _allRequests = []; // Clear data dulu
+                });
+                await _loadData();
+                print('Data reloaded from server');
+                print('Total requests after reload: ${_allRequests.length}');
+
+                // Gunakan scaffoldMessenger yang sudah disimpan sebelumnya
+                if (updated1 && updated2 && updated3) {
+                  scaffoldMessenger.showSnackBar(
                     const SnackBar(
                       content: Text("Pengajuan berhasil diperbarui"),
                       backgroundColor: Colors.green,
                     ),
                   );
-                }
-              } catch (e) {
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text("Gagal memperbarui: $e"),
+                } else if (updated1 || updated2 || updated3) {
+                  scaffoldMessenger.showSnackBar(
+                    const SnackBar(
+                      content: Text("Sebagian data berhasil diperbarui"),
+                      backgroundColor: Colors.orange,
+                    ),
+                  );
+                } else {
+                  scaffoldMessenger.showSnackBar(
+                    const SnackBar(
+                      content: Text("Gagal memperbarui data ke server"),
                       backgroundColor: Colors.red,
                     ),
                   );
                 }
+              } catch (e) {
+                print('Error updating: $e');
+                scaffoldMessenger.showSnackBar(
+                  SnackBar(
+                    content: Text("Gagal memperbarui: $e"),
+                    backgroundColor: Colors.red,
+                  ),
+                );
               }
             },
             style: ElevatedButton.styleFrom(
@@ -1693,6 +1912,19 @@ class _StatusTabState extends State<_StatusTab> {
   }
 
   void _showDeleteConfirmation(Map<String, dynamic> item) {
+    // Cek apakah masih pending
+    if (item['status'] != 'Pending') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            "Hanya pengajuan dengan status Pending yang bisa dihapus",
+          ),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -1715,8 +1947,35 @@ class _StatusTabState extends State<_StatusTab> {
           ElevatedButton(
             onPressed: () async {
               Navigator.pop(context);
+
+              // Show loading
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Row(
+                      children: [
+                        SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              Colors.white,
+                            ),
+                          ),
+                        ),
+                        SizedBox(width: 16),
+                        Text("Menghapus pengajuan..."),
+                      ],
+                    ),
+                    duration: Duration(seconds: 2),
+                  ),
+                );
+              }
+
               try {
-                await _dataService.updateId(
+                // Update status menjadi Deleted
+                bool deleted = await _dataService.updateId(
                   'status',
                   'Deleted',
                   AppConfig.token,
@@ -1725,7 +1984,15 @@ class _StatusTabState extends State<_StatusTab> {
                   AppConfig.appid,
                   item['id'],
                 );
-                _loadData();
+
+                print('Delete result: $deleted for item ${item['id']}');
+
+                // Tunggu sebentar agar data terupdate di server
+                await Future.delayed(const Duration(milliseconds: 500));
+
+                // Reload data
+                await _loadData();
+
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
@@ -1735,6 +2002,7 @@ class _StatusTabState extends State<_StatusTab> {
                   );
                 }
               } catch (e) {
+                print('Error deleting: $e');
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
