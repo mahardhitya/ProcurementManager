@@ -1928,18 +1928,62 @@ class _AdminBudgetingTabState extends State<_AdminBudgetingTab> {
         {'source': 'Dana Investor', 'amount': 100000000, 'date': '2026-01-15'},
       ];
 
-      // Load division budgets from API or use dummy
-      _divisionBudgets = {
-        'IT': 40000000,
-        'Marketing': 35000000,
-        'Operations': 25000000,
-        'Finance': 15000000,
-        'HR': 10000000,
-      };
+      // Load division budgets from API
+      await _loadDivisionBudgetsFromAPI();
     } catch (e) {
       print('Error loading data: $e');
     } finally {
       setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _loadDivisionBudgetsFromAPI() async {
+    try {
+      String response = await _svc.selectAll(
+        AppConfig.token,
+        'procumon',
+        'division_budgets',
+        AppConfig.appid,
+      );
+
+      var jsonResponse = json.decode(response);
+      List budgetData = [];
+      if (jsonResponse is Map && jsonResponse['data'] != null) {
+        budgetData = jsonResponse['data'] as List;
+      } else if (jsonResponse is List) {
+        budgetData = jsonResponse;
+      }
+
+      // Initialize with default values
+      Map<String, int> loadedBudgets = {
+        'IT': 0,
+        'Marketing': 0,
+        'Operations': 0,
+        'Finance': 0,
+        'HR': 0,
+      };
+
+      // Update with data from API
+      for (var budget in budgetData) {
+        String divisionName = budget['division_name'] ?? '';
+        int amount =
+            int.tryParse(budget['allocated_budget']?.toString() ?? '0') ?? 0;
+        if (loadedBudgets.containsKey(divisionName)) {
+          loadedBudgets[divisionName] = amount;
+        }
+      }
+
+      _divisionBudgets = loadedBudgets;
+    } catch (e) {
+      print('Error loading division budgets: $e');
+      // Use default values if error
+      _divisionBudgets = {
+        'IT': 0,
+        'Marketing': 0,
+        'Operations': 0,
+        'Finance': 0,
+        'HR': 0,
+      };
     }
   }
 
@@ -2002,7 +2046,7 @@ class _AdminBudgetingTabState extends State<_AdminBudgetingTab> {
     );
   }
 
-  void _allocateBudget() {
+  void _allocateBudget() async {
     final amount =
         int.tryParse(_budgetAmountController.text.replaceAll('.', '')) ?? 0;
     if (amount <= 0) {
@@ -2026,17 +2070,70 @@ class _AdminBudgetingTabState extends State<_AdminBudgetingTab> {
       return;
     }
 
-    setState(() {
-      _divisionBudgets[_selectedDivision] = amount;
-      _budgetAmountController.clear();
-    });
+    // Save to API
+    try {
+      // Check if budget for this division already exists
+      String checkResponse = await _svc.selectWhere(
+        AppConfig.token,
+        'procumon',
+        'division_budgets',
+        AppConfig.appid,
+        'division_name',
+        _selectedDivision,
+      );
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Budget $_selectedDivision berhasil diupdate'),
-        backgroundColor: Colors.green,
-      ),
-    );
+      var checkData = json.decode(checkResponse);
+      List existingBudgets = [];
+      if (checkData is Map && checkData['data'] != null) {
+        existingBudgets = checkData['data'] as List;
+      } else if (checkData is List) {
+        existingBudgets = checkData;
+      }
+
+      if (existingBudgets.isNotEmpty) {
+        // Update existing budget
+        String budgetId =
+            existingBudgets[0]['id'] ?? existingBudgets[0]['_id'] ?? '';
+        await _svc.updateId(
+          'allocated_budget',
+          amount.toString(),
+          AppConfig.token,
+          'procumon',
+          'division_budgets',
+          AppConfig.appid,
+          budgetId,
+        );
+      } else {
+        // Insert new budget
+        await _svc.insertDivisionBudgets(
+          AppConfig.appid,
+          _selectedDivision,
+          amount.toString(),
+          '', // month_name - empty for overall budget
+          DateTime.now().year.toString(),
+        );
+      }
+
+      setState(() {
+        _divisionBudgets[_selectedDivision] = amount;
+        _budgetAmountController.clear();
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Budget $_selectedDivision berhasil diupdate'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      print('Error saving budget: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Gagal menyimpan budget: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   @override
