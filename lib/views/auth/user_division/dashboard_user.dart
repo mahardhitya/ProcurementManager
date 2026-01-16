@@ -205,6 +205,7 @@ class _HomeTabState extends State<_HomeTab> {
   List<Map<String, dynamic>> _allRequests = [];
   bool _isLoading = true;
   final DataService _dataService = DataService();
+  int _divisionBudget = 0; // Budget yang diberikan admin untuk divisi ini
 
   @override
   void initState() {
@@ -219,6 +220,9 @@ class _HomeTabState extends State<_HomeTab> {
     setState(() => _isLoading = true);
 
     try {
+      // Load division budget from API
+      await _loadDivisionBudget();
+
       String response = await _dataService.selectAll(
         AppConfig.token,
         'procumon',
@@ -226,33 +230,43 @@ class _HomeTabState extends State<_HomeTab> {
         AppConfig.appid,
       );
 
-      var jsonResponse = json.decode(response);
       List requestData = [];
-      if (jsonResponse is Map && jsonResponse['data'] != null) {
-        requestData = jsonResponse['data'] as List;
-      } else if (jsonResponse is List) {
-        requestData = jsonResponse;
+
+      if (response.isNotEmpty && response != '[]') {
+        try {
+          var jsonResponse = json.decode(response);
+          if (jsonResponse is Map && jsonResponse['data'] != null) {
+            requestData = jsonResponse['data'] as List;
+          } else if (jsonResponse is List) {
+            requestData = jsonResponse;
+          }
+        } catch (e) {
+          print('Error parsing JSON: $e');
+          requestData = [];
+        }
       }
 
       // Collect processed item keys
       Set<String> processedItemKeys = {};
       for (var item in requestData) {
-        String status = item['status']?.toLowerCase() ?? '';
+        if (item == null) continue;
+        String status = (item['status'] ?? '').toString().toLowerCase();
         if (status == 'approved' || status == 'rejected') {
           String key =
-              '${item['item_name']}|${item['division_name']}|${item['month_name']}|${item['date']}';
+              '${item['item_name'] ?? ''}|${item['division_name'] ?? ''}|${item['month_name'] ?? ''}|${item['date'] ?? ''}';
           processedItemKeys.add(key);
         }
       }
 
       List<Map<String, dynamic>> filteredRequests = [];
       for (var item in requestData) {
-        String itemDivision = item['division_name'] ?? '';
-        String itemStatus = item['status'] ?? 'Pending';
+        if (item == null) continue;
+        String itemDivision = (item['division_name'] ?? '').toString();
+        String itemStatus = (item['status'] ?? 'Pending').toString();
         bool isDeleted = itemStatus.toLowerCase() == 'deleted';
 
         String itemKey =
-            '${item['item_name']}|$itemDivision|${item['month_name']}|${item['date']}';
+            '${item['item_name'] ?? ''}|$itemDivision|${item['month_name'] ?? ''}|${item['date'] ?? ''}';
         bool isPendingWithProcessedVersion =
             itemStatus.toLowerCase() == 'pending' &&
             processedItemKeys.contains(itemKey);
@@ -261,16 +275,16 @@ class _HomeTabState extends State<_HomeTab> {
             !isDeleted &&
             !isPendingWithProcessedVersion) {
           filteredRequests.add({
-            'id': item['id'] ?? item['_id'] ?? '',
-            'item_name': item['item_name'] ?? 'Unknown',
-            'quantity': int.tryParse(item['quantity']?.toString() ?? '0') ?? 0,
-            'price': int.tryParse(item['price']?.toString() ?? '0') ?? 0,
+            'id': (item['id'] ?? item['_id'] ?? '').toString(),
+            'item_name': (item['item_name'] ?? 'Unknown').toString(),
+            'quantity': int.tryParse((item['quantity'] ?? '0').toString()) ?? 0,
+            'price': int.tryParse((item['price'] ?? '0').toString()) ?? 0,
             'total_price':
-                int.tryParse(item['total_price']?.toString() ?? '0') ?? 0,
+                int.tryParse((item['total_price'] ?? '0').toString()) ?? 0,
             'status': itemStatus,
-            'date': item['date'] ?? '',
+            'date': (item['date'] ?? '').toString(),
             'division': itemDivision,
-            'month_name': item['month_name'] ?? '',
+            'month_name': (item['month_name'] ?? '').toString(),
           });
         }
       }
@@ -281,8 +295,25 @@ class _HomeTabState extends State<_HomeTab> {
       });
     } catch (e) {
       print('Error loading data: $e');
-      setState(() => _isLoading = false);
+      setState(() {
+        _allRequests = [];
+        _isLoading = false;
+      });
     }
+  }
+
+  // Load budget yang dialokasikan admin untuk divisi ini (dummy data)
+  Future<void> _loadDivisionBudget() async {
+    // Dummy data budget per divisi
+    Map<String, int> divisionBudgets = {
+      'IT': 40000000,
+      'Marketing': 35000000,
+      'Operations': 25000000,
+      'Finance': 15000000,
+      'HR': 10000000,
+    };
+
+    _divisionBudget = divisionBudgets[widget.userDivision] ?? 0;
   }
 
   // Get requests filtered by selected month
@@ -323,6 +354,14 @@ class _HomeTabState extends State<_HomeTab> {
       return "${(amount / 1000).toStringAsFixed(0)}K";
     }
     return amount.toString();
+  }
+
+  // Format currency with full number and thousand separators
+  String _formatCurrencyFull(int amount) {
+    return amount.toString().replaceAllMapped(
+      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+      (Match m) => '${m[1]}.',
+    );
   }
 
   @override
@@ -489,54 +528,217 @@ class _HomeTabState extends State<_HomeTab> {
                   ),
                 ),
 
-                // Summary Card (Floating) - Diperbesar
+                // Summary Cards (Floating) - Shopee Style Layout
                 Positioned(
-                  bottom: -45,
-                  left: 20,
-                  right: 20,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 16,
-                      horizontal: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(18),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.06),
-                          blurRadius: 15,
-                          offset: const Offset(0, 6),
+                  bottom: -85,
+                  left: 16,
+                  right: 16,
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Left Card - Budget dari Admin
+                      Expanded(
+                        flex: 1,
+                        child: Container(
+                          height: 140,
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.08),
+                                blurRadius: 15,
+                                offset: const Offset(0, 6),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(5),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFE3F2FD),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: const Icon(
+                                      Icons.account_balance_wallet,
+                                      color: Color(0xFF1565C0),
+                                      size: 16,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  const Expanded(
+                                    child: Text(
+                                      "Budget Divisi",
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              FittedBox(
+                                fit: BoxFit.scaleDown,
+                                alignment: Alignment.centerLeft,
+                                child: Text(
+                                  "Rp ${_formatCurrencyFull(_divisionBudget)}",
+                                  style: const TextStyle(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF1565C0),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ],
-                    ),
-                    child: Row(
-                      children: [
-                        _buildSummaryInfo(
-                          "Total Item",
-                          "$totalItems Pcs",
-                          Icons.shopping_bag_outlined,
-                          Colors.orange,
+                      ),
+                      const SizedBox(width: 10),
+                      // Right Column - 2 Cards
+                      Expanded(
+                        flex: 1,
+                        child: Column(
+                          children: [
+                            // Top Right Card - Total Barang Diajukan
+                            Container(
+                              height: 62,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 10,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(14),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.08),
+                                    blurRadius: 15,
+                                    offset: const Offset(0, 6),
+                                  ),
+                                ],
+                              ),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(5),
+                                    decoration: BoxDecoration(
+                                      color: Colors.orange.shade50,
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Icon(
+                                      Icons.shopping_bag_outlined,
+                                      color: Colors.orange.shade600,
+                                      size: 14,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        Text(
+                                          "Total Barang",
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            color: Colors.grey.shade600,
+                                          ),
+                                        ),
+                                        Text(
+                                          "$totalItems Item",
+                                          style: const TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            // Bottom Right Card - Total Budget Pengajuan
+                            Container(
+                              height: 62,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 10,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(14),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.08),
+                                    blurRadius: 15,
+                                    offset: const Offset(0, 6),
+                                  ),
+                                ],
+                              ),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(5),
+                                    decoration: BoxDecoration(
+                                      color: Colors.green.shade50,
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Icon(
+                                      Icons.receipt_long_outlined,
+                                      color: Colors.green.shade600,
+                                      size: 14,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        Text(
+                                          "Total Pengajuan",
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            color: Colors.grey.shade600,
+                                          ),
+                                        ),
+                                        Text(
+                                          "Rp ${_formatCurrency(totalBudget)}",
+                                          style: const TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
-                        Container(
-                          width: 1,
-                          height: 50,
-                          color: Colors.grey.shade200,
-                        ),
-                        _buildSummaryInfo(
-                          "Total Biaya",
-                          "${_formatCurrency(totalBudget)}",
-                          Icons.attach_money,
-                          Colors.green,
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
               ],
             ),
 
-            const SizedBox(height: 75),
+            const SizedBox(height: 115),
 
             // Month Filter
             Padding(
