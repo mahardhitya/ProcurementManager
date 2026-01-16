@@ -110,7 +110,7 @@ class _LoginPageState extends State<LoginPage> {
       // Response API format: {"limit":0,"offset":0,"total":1,"data":[...]}
       // Jadi perlu ambil jsonResponse['data'] yang merupakan List users
       List<dynamic> users = [];
-      
+
       if (jsonResponse is Map && jsonResponse['data'] != null) {
         users = jsonResponse['data'] as List<dynamic>;
       } else if (jsonResponse is List) {
@@ -231,28 +231,64 @@ class _LoginPageState extends State<LoginPage> {
               // --- HEADER ILUSTRASI (Optional) ---
               Center(
                 child: Container(
-                  height: 80,
-                  width: 80,
+                  height: 100,
+                  width: 100,
                   decoration: BoxDecoration(
-                    color: Colors.blue.shade50,
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [Colors.blue.shade400, Colors.blue.shade700],
+                    ),
                     shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.blue.withOpacity(0.3),
+                        blurRadius: 20,
+                        offset: const Offset(0, 10),
+                      ),
+                    ],
                   ),
                   child: const Icon(
-                    Icons.lock_person_outlined,
-                    size: 40,
-                    color: Colors.blue,
+                    Icons.shopping_bag_rounded,
+                    size: 50,
+                    color: Colors.white,
                   ),
                 ),
               ),
               const SizedBox(height: 20),
 
               // --- JUDUL HALAMAN ---
+              const Center(
+                child: Column(
+                  children: [
+                    Text(
+                      "ProcuMon",
+                      style: TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.blue,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      "Procurement Manager",
+                      style: TextStyle(
+                        color: Colors.grey,
+                        fontSize: 13,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 30),
               const Text(
                 "Login Account",
                 style: TextStyle(
-                  fontSize: 24,
+                  fontSize: 22,
                   fontWeight: FontWeight.bold,
-                  color: Colors.blue,
+                  color: Colors.black87,
                 ),
               ),
               const Text(
